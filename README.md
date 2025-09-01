@@ -1,1 +1,1 @@
-# clinical-trial-r-shiny
+# R Shiny App for Clinical Trial Data
