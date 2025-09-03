@@ -4,8 +4,8 @@ library(shiny)
 # For now keep just use server.R with pharmaversesdtm
 # Later on we can switch it so they can import a file from user input on the UI
 
-if (!requireNamespace("pharmaverse")) {
-  install.packages("pharmaverse")
+if (!requireNamespace("pharmaversesdtm")) {
+  install.packages("pharmaversesdtm")
 }
 library(pharmaversesdtm)
 
@@ -34,12 +34,12 @@ server <- function(input, output, session) {
   
   # NOTE: if your particular component needs other data_sets
   # you can add them here
-  mod_ds_server("ds", dm_r = dm_r, ds_r = ds_r)
-  mod_ae_server("ae", dm_r = dm_r, ae_r = ae_r)
-  mod_cm_server("cm", dm_r = dm_r, cm_r = cm_r)
+  mod_ds_server(dm_r = dm_r, ds_r = ds_r)
+  mod_ae_server(dm_r = dm_r, ae_r = ae_r)
+  mod_cm_server(dm_r = dm_r, cm_r = cm_r)
   
   # READ THIS: So in each module you can get the data from the server by doing
-  # mod_dm_server <- function(id, dm_r) {
+  # mod_dm_server <- function(dm_r) {
   #     CALL DATA USING THE REACTIVE
   #     Example: ds <- ds_r()
   #

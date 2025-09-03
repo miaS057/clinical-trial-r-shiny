@@ -10,10 +10,10 @@ source("modules/mod_ae.R")
 source("modules/mod_cm.R")
 
 
-shinyUI(
-  # display each domain in a different page
-  # NEXT STEP: Make the UI look better using bslib
-  navbarPage(
+# display each domain in a different page
+# NEXT STEP: Make the UI look better using bslib
+
+ui <- navbarPage(
     # make sure to name your seperate page functions mod_dm_ui(id), etc...
     # if you want to test then you can comment out the pages you arent working on
     # (make sure you comment out the server functions you arent testing too)
