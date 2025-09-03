@@ -14,6 +14,8 @@ shinyUI(
   # display each domain in a different page
   # NEXT STEP: Make the UI look better using bslib
   navbarPage(
+    # make sure to name your seperate page functions mod_dm_ui(id), etc...
+    # if you want to test then you can comment out the pages you arent working on
     title = "Clinical Domains",
     tabPanel("DM", mod_dm_ui("dm")),
     tabPanel("DS", mod_ds_ui("ds")),
