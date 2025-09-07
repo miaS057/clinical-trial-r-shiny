@@ -28,4 +28,4 @@ ui <- navbarPage(
     #   tagList(
     #   GRAPHS AND OTHER VISUALS GO HERE
   )
-)
+

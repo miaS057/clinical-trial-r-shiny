@@ -34,7 +34,7 @@ server <- function(input, output, session) {
   
   # NOTE: if your particular component needs other data_sets
   # you can add them here
-  mod_ds_server(dm_r = dm_r, ds_r = ds_r)
+  mod_ds_server(dm_r = dm_r, ds_r = ds_r, output = output)
   mod_ae_server(dm_r = dm_r, ae_r = ae_r)
   mod_cm_server(dm_r = dm_r, cm_r = cm_r)
   
