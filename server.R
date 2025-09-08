@@ -30,13 +30,13 @@ server <- function(input, output, session) {
   # we need to export the data we need from the server to each module
   # NOTE: So for each module we need to have a server component
   
-  mod_dm_server("dm", dm_r = dm_r)
+  #mod_dm_server("dm", dm_r = dm_r)
   
   # NOTE: if your particular component needs other data_sets
   # you can add them here
-  mod_ds_server(dm_r = dm_r, ds_r = ds_r)
-  mod_ae_server(dm_r = dm_r, ae_r = ae_r)
-  mod_cm_server(dm_r = dm_r, cm_r = cm_r)
+  #mod_ds_server(dm_r = dm_r, ds_r = ds_r)
+  #mod_ae_server(dm_r = dm_r, ae_r = ae_r)
+  mod_cm_server(dm_r = dm_r, cm_r = cm_r, output = output)
   
   # READ THIS: So in each module you can get the data from the server by doing
   # mod_dm_server <- function(dm_r) {
