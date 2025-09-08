@@ -5,7 +5,8 @@ mod_ds_ui <- function() {
   tagList(
     plotly::plotlyOutput("flow_sankey", height = "520px"),
     br(),
-    plotOutput("ds_table_plot", height = "520px")
+    plotOutput("ds_table_plot", height = "520px"),
+    br(), br(), br()
   )
 }
 
@@ -188,7 +189,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
     ) %>%
       # Create the layout (change margins as needed)
       plotly::layout(
-        title = list(text = "Subject Disposition: ARM -> DS Event", x = 0.5),
+        title = list(text = "Subject Disposition Flow Chart: ARM -> DS", x = 0.5),
         font = list(size = 14),
         # give labels room so they don't clip
         margin = list(t = 40, l = 100, r = 120, b = 30)
@@ -276,7 +277,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
         size = 4
       ) +
       ggplot2::scale_y_discrete(limits = rev(levels_y)) +
-      ggplot2::labs(title = "Disposition by ARM", x = "ARM", y = NULL) +
+      ggplot2::labs(title = "Disposition by ARM", x = NULL, y = NULL) +
       ggplot2::theme_minimal(base_size = 13) +
       ggplot2::theme(
         panel.grid  = ggplot2::element_blank(),
