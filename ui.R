@@ -2,6 +2,7 @@
 library(bslib)
 library(shiny)
 library(DT)
+library(tidyverse)
 
 # import modules for each page
 source("modules/mod_dm.R")
