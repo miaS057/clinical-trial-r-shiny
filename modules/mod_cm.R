@@ -186,7 +186,7 @@ mod_cm_server <- function(dm_r, cm_r, output) {
     arms <- unique(cm_final_donut_dat()$ARM)
     pal  <- donut_palette()
     
-    # For each ARM, create plotOutput + datatableOutput
+    # For each ARM, create plotOutput + datatableOutput outline
     ui_kids <- lapply(arms, function(arm) {
       arm_id <- gsub("\\W+", "_", arm)
       div(class = "donut-card",
@@ -195,7 +195,7 @@ mod_cm_server <- function(dm_r, cm_r, output) {
       )
     })
     
-    # Register renders (scoped to this renderUI so they have the right data)
+    # Renders all the donut charts
     lapply(arms, function(arm) {
       arm_id <- gsub("\\W+", "_", arm)
       df_arm <- isolate(cm_final_donut_dat()) %>% dplyr::filter(ARM == arm)
