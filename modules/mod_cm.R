@@ -2,43 +2,49 @@
 # pass in data needed from the server
 
 mod_cm_ui <- function() {
-  tagList(
-    div(
-      uiOutput("arm_donuts")
+  navbarPage(
+    title = "CM Visuals",
+    tabPanel("Donut Chart",
+      tagList(
+        div(
+          uiOutput("arm_donuts")
+        ),
+        # CSS for donut chart makes it not wrap and keeps the donut charts side by side
+        tags$style(HTML("
+          .donut-grid {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          gap: 60px;
+          overflow-x: auto; 
+          padding: 16px; 
+        }
+        
+        .donut-card {
+          flex: 0 0 500px;
+          max-width: 500px;
+          padding: 8px 8px 0 8px;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          background: #ffffff;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .donut-title {
+          font-weight: 600;
+          margin: 6px 8px 0 8px;
+        }
+        .dt-toggle {
+          margin: 6px 0 10px;
+          cursor: pointer;
+          color: #2563eb;
+          font-weight: 500;
+        }
+        .dt-toggle:hover { text-decoration: underline; }
+        "))
+      )
     ),
-    # CSS for donut chart makes it not wrap and keeps the donut charts side by side
-    tags$style(HTML("
-      .donut-grid {
-      display: flex;
-      flex-direction: row;
-      flex-wrap: nowrap;
-      gap: 60px;
-      overflow-x: auto; 
-      padding: 16px; 
-    }
-    
-    .donut-card {
-      flex: 0 0 500px;
-      max-width: 500px;
-      padding: 8px 8px 0 8px;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      background: #ffffff;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    
-    .donut-title {
-      font-weight: 600;
-      margin: 6px 8px 0 8px;
-    }
-    .dt-toggle {
-      margin: 6px 0 10px;
-      cursor: pointer;
-      color: #2563eb;
-      font-weight: 500;
-    }
-    .dt-toggle:hover { text-decoration: underline; }
-    "))
+    tabPanel("Table", "")
   )
 }
 
