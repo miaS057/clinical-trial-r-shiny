@@ -1,14 +1,20 @@
 # Load libraries
 library(dplyr)
 library(plotly)
+<<<<<<< HEAD
 library(tidyr)
+=======
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
 library(stringr)
 library(bslib)
 library(shiny)
 library(lubridate)
 library(data.table)
+<<<<<<< HEAD
 library(treemapify)
 library(gt)
+=======
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
 library(pharmaversesdtm)
 
 data(package = "pharmaversesdtm")
@@ -16,15 +22,21 @@ data(package = "pharmaversesdtm")
 # ---------------------------------------------------------------------------- #
 # ------------------------------------ UI ------------------------------------ #
 # ---------------------------------------------------------------------------- #
+<<<<<<< HEAD
 
 
 mod_dm_ui <- function() {
   dm_plot_cards
+=======
+mod_dm_ui <- function() {
+  dm_cards
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
 }
 
 min_date <- as.Date(min(dm$RFSTDTC, na.rm=TRUE))
 max_date <- as.Date(max(dm$RFSTDTC, na.rm=TRUE))
 
+<<<<<<< HEAD
 select_site <- radioButtons(
   inputId = "site_select",
   label = "Selected site to display",
@@ -83,6 +95,29 @@ dm_plot_cards <- card(
       
     ),
     dm_summary_table
+=======
+dm_cards <- page_fillable(
+  layout_columns(
+    card(radioButtons(
+      inputId = "site_select",
+      label = "Selected site to display",
+      choices = c("All sites combined", unique(dm$SITEID)),
+      selected = "All sites combined",
+      inline = TRUE)
+    ),
+    card(sliderInput(
+      inputId = "date_select",
+      label = "Selected date range based on trial start date",
+      min = min_date,
+      max = max_date,
+      value = c(min_date, max_date),
+      timeFormat = "%Y-%m-%d"
+    ))
+  ),
+  layout_columns(
+    card(plotlyOutput(outputId = "age_plot")),
+    card(plotlyOutput(outputId = "race_plot"))
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
   )
 )
 
@@ -92,6 +127,7 @@ dm_plot_cards <- card(
 # ---------------------------------------------------------------------------- #
 mod_dm_server <- function(input, output, dm_r) {
   dm <- reactive({dm_r()})
+<<<<<<< HEAD
 
 
   # ------------ Age Boxplot ------------ #
@@ -99,13 +135,26 @@ mod_dm_server <- function(input, output, dm_r) {
     filtered_date_df <- dm()[as.Date(dm()$RFSTDTC) %inrange%
                              as.Date(input$date_select),,drop=FALSE]
 
+=======
+  # ------------ Age Boxplot ------------ #
+  output$age_plot <- renderPlotly({
+    filtered_date_df <- dm()[as.Date(dm()$RFSTDTC) %inrange% 
+                             as.Date(input$date_select),,drop=FALSE]
+    
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
     if(input$site_select == "All sites combined"){
       age_df <- filtered_date_df
     }
     if(input$site_select != "All sites combined"){
+<<<<<<< HEAD
       age_df <- filtered_date_df %>% filter(SITEID == input$site_select)
     }
 
+=======
+      age_df <- filtered_date_df %>% filter(SITEID == input$site_select) 
+    }
+    
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
     if(nrow(age_df) == 0){
       empty_plot <- ggplot() +
         labs(title = "Age boxplot by treatment and sex",
@@ -113,13 +162,21 @@ mod_dm_server <- function(input, output, dm_r) {
              y = "Age")
       return(empty_plot)
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
     age_by_arm_plot <- ggplot(age_df, aes(
       x = ARM,
       y = AGE,
       fill = SEX)) +
       geom_boxplot() +
+<<<<<<< HEAD
       labs(title = "Age by treatment and sex",
+=======
+      labs(title = "Age boxplot by treatment and sex",
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
            x = "Treatment",
            y = "Age",
            fill = "Sex") +
@@ -130,22 +187,32 @@ mod_dm_server <- function(input, output, dm_r) {
     return(ggplotly(age_by_arm_plot, tooltip = "text") %>%
              layout(boxmode = "group"))
   })
+<<<<<<< HEAD
 
 
+=======
+  
+  
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
   # ------------ Race Bar Chart ------------ #
   output$race_plot <- renderPlotly({
     filtered_date_df <- dm()[as.Date(dm()$RFSTDTC) %inrange%
                              as.Date(input$date_select),,drop=FALSE]
+<<<<<<< HEAD
     wrap_label <- dm() %>% mutate(RACE = str_wrap(RACE, width = 17))
 
     palette1_named <- setNames(
       object = scales::hue_pal()(length(unique(wrap_label$RACE))),
       nm = unique(wrap_label$RACE))
 
+=======
+    
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
     if(input$site_select == "All sites combined"){
       race_df <- filtered_date_df %>% group_by(ARM, RACE) %>% count(RACE)
     }
     else{
+<<<<<<< HEAD
       race_df <- filtered_date_df %>% filter(SITEID == input$site_select) %>%
         group_by(ARM, RACE) %>% count(RACE)
     }
@@ -162,10 +229,26 @@ mod_dm_server <- function(input, output, dm_r) {
            y = "Count",
            fill = "Race") +
       scale_fill_manual(values = palette1_named) +
+=======
+      race_df <- filtered_date_df %>% filter(SITEID == input$site_select) %>% 
+        group_by(ARM, RACE) %>% count(RACE)
+    }
+    race_by_arm_plot <- ggplot(race_df, aes(
+      x = ARM, 
+      y = n, 
+      text = paste0("Count: ", n),
+      fill = RACE)) +
+      geom_bar(stat = "identity", position = "dodge") +
+      labs(title = "Race barchart by treatment", 
+           x = "Treatment", 
+           y = "Count", 
+           fill = "Race") +
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
       theme(
         legend.text = element_text(size = 7),
         axis.text.x = element_text(angle = -45)
       )
+<<<<<<< HEAD
 
     return(ggplotly(race_by_arm_plot, tooltip = "text"))
   })
@@ -360,6 +443,12 @@ mod_dm_server <- function(input, output, dm_r) {
       )
   })
 
+=======
+    
+    return(ggplotly(race_by_arm_plot, tooltip = "text"))
+  })
+  
+>>>>>>> 52589dc798faeeea39d76e885843894348b9223d
 }
 
 
