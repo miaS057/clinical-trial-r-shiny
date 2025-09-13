@@ -36,7 +36,7 @@ server <- function(input, output, session) {
   # you can add them here
   #mod_ds_server(dm_r = dm_r, ds_r = ds_r)
   #mod_ae_server(dm_r = dm_r, ae_r = ae_r)
-  mod_cm_server(dm_r = dm_r, cm_r = cm_r, output = output, input = input)
+  mod_cm_server(dm_r = dm_r, cm_r = cm_r, output = output, input = input, session = session)
   
   # READ THIS: So in each module you can get the data from the server by doing
   # mod_dm_server <- function(dm_r) {
