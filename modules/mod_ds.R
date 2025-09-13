@@ -35,7 +35,7 @@ mod_ds_ui <- function() {
     div(class = "ds-grid",
         div(class = "ds-card",
             h3("Subject Disposition Flow"),
-            plotly::plotlyOutput("flow_sankey", height = "520px")
+            plotly::plotlyOutput("flow_sankey", height = "520px", width = "100%")
         ),
         div(class = "ds-card",
             h3("Disposition by ARM"),
@@ -175,9 +175,9 @@ mod_ds_server <- function(dm_r, ds_r, output) {
     node_color_vec <- unname(node_colors[nodes])
     
     # The position of the node columns
-    left_x <- rep(0.10, length(arms))
+    left_x <- rep(0.01, length(arms))
     left_y <- seq(0.15, 0.95, length.out = length(arms))
-    right_x <- rep(0.85, length(buckets))
+    right_x <- rep(1.00, length(buckets))
     right_y <- c(0.75, 0.50, 0.25)
     
     # Combine them for the left and right side
@@ -185,7 +185,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
     node_y <- c(left_y, right_y)
     
     # Label the nodes
-    node_labels <- paste0("<b>", nodes, "</b>")
+    node_labels <- nodes
     
     # Build the flow chart
     p <- plotly::plot_ly(
@@ -199,7 +199,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
         color = unname(node_color_vec),
         pad = 16,
         thickness = 16,
-        line = list(width = 0.5, color = "#666666"),
+        line = list(width = 0.5, color = "black"),
         x = node_x,
         y = node_y
       ),
@@ -226,9 +226,9 @@ mod_ds_server <- function(dm_r, ds_r, output) {
       # Create the layout (change margins as needed)
       plotly::layout(
         title = list(text = "", x = 0.5),
-        font = list(size = 14),
+        font = list(color = "black", size = 14),
         # give labels room so they don't clip
-        margin = list(t = 40, l = 100, r = 120, b = 30),
+        margin = list(t = 10, l = 100, r = 120, b = 80),
         paper_bgcolor = "rgba(0,0,0,0)",
         plot_bgcolor  = "rgba(0,0,0,0)"
       )
