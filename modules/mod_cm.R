@@ -440,16 +440,17 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
     seq_by <- function(from, to, by) {
       # snap to nice boundaries
       unit <- dplyr::case_when(
-        grepl("week", by)   ~ "week",
-        grepl("month", by)  ~ "month",
-        grepl("year", by)   ~ "year",
+        grepl("week", by) ~ "week",
+        grepl("month", by) ~ "month",
+        grepl("year", by) ~ "year",
         TRUE ~ "day"
       )
-      from2 <- switch(unit,
-                      week = lubridate::floor_date(from, "week"),
-                      month = lubridate::floor_date(from, "month"),
-                      year = lubridate::floor_date(from, "year"),
-                      lubridate::floor_date(from, "day")
+      from2 <- switch(
+        unit,
+        week = lubridate::floor_date(from, "week"),
+        month = lubridate::floor_date(from, "month"),
+        year = lubridate::floor_date(from, "year"),
+        lubridate::floor_date(from, "day")
       )
       seq.Date(from2, lubridate::ceiling_date(to, unit), by = by)
     }
