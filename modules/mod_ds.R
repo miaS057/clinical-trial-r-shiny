@@ -22,11 +22,10 @@ mod_ds_ui <- function() {
         padding: 14px;
       }
       .ds-card h3 {
-        margin: 0 0 8px 0;
+        margin: 8px 8px 8px 8px;
         font-weight: 600;
         font-size: 16px;
       }
-      /* Plotly: remove grey backgrounds */
       .js-plotly-plot .plotly, .js-plotly-plot .plotly .svg-container {
         background: transparent !important;
       }
