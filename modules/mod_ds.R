@@ -3,10 +3,46 @@
 
 mod_ds_ui <- function() {
   tagList(
-    plotly::plotlyOutput("flow_sankey", height = "520px"),
-    br(),
-    plotOutput("ds_table_plot", height = "520px"),
-    br(), br(), br()
+    tags$style(HTML("
+      .ds-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      @media (min-width: 1100px) {
+        .ds-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      .ds-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        padding: 14px;
+      }
+      .ds-card h3 {
+        margin: 0 0 8px 0;
+        font-weight: 600;
+        font-size: 16px;
+      }
+      /* Plotly: remove grey backgrounds */
+      .js-plotly-plot .plotly, .js-plotly-plot .plotly .svg-container {
+        background: transparent !important;
+      }
+    ")),
+    
+    div(class = "ds-grid",
+        div(class = "ds-card",
+            h3("Subject Disposition Flow"),
+            plotly::plotlyOutput("flow_sankey", height = "520px")
+        ),
+        div(class = "ds-card",
+            h3("Disposition by ARM"),
+            plotOutput("ds_table_plot", height = "520px")
+        )
+    ),
+    br()
   )
 }
 
@@ -149,7 +185,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
     node_y <- c(left_y, right_y)
     
     # Label the nodes
-    node_labels <- nodes
+    node_labels <- paste0("<b>", nodes, "</b>")
     
     # Build the flow chart
     p <- plotly::plot_ly(
@@ -161,9 +197,9 @@ mod_ds_server <- function(dm_r, ds_r, output) {
       node = list(
         label = node_labels,
         color = unname(node_color_vec),
-        pad = 18,
-        thickness = 18,
-        line = list(width = 0.5, color = "#666"),
+        pad = 16,
+        thickness = 16,
+        line = list(width = 0.5, color = "#666666"),
         x = node_x,
         y = node_y
       ),
@@ -189,10 +225,12 @@ mod_ds_server <- function(dm_r, ds_r, output) {
     ) %>%
       # Create the layout (change margins as needed)
       plotly::layout(
-        title = list(text = "Subject Disposition Flow Chart: ARM -> DS", x = 0.5),
+        title = list(text = "", x = 0.5),
         font = list(size = 14),
         # give labels room so they don't clip
-        margin = list(t = 40, l = 100, r = 120, b = 30)
+        margin = list(t = 40, l = 100, r = 120, b = 30),
+        paper_bgcolor = "rgba(0,0,0,0)",
+        plot_bgcolor  = "rgba(0,0,0,0)"
       )
     p
   })
@@ -235,7 +273,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
       dplyr::group_by(bucket, DSDECOD, ARM) %>%
       dplyr::summarise(n = sum(subject_count), .groups = "drop") %>%
       dplyr::mutate(
-        label = as.character(DSDECOD),   # indentation
+        label = paste0("&nbsp;&nbsp;• ", DSDECOD, " &nbsp;&nbsp;•"),   # indentation
         is_header = FALSE
       ) %>%
       dplyr::select(bucket, ARM, label, n, is_header)
@@ -247,7 +285,7 @@ mod_ds_server <- function(dm_r, ds_r, output) {
     # Build Y-axis
     levels_y <- unique(table_df$label)
     
-    # ensure every label to ARm cell exists (fill missing combos with 0)
+    # ensure every label to ARM cell exists (fill missing combos with 0)
     table_df <- tidyr::complete(
       table_df,
       label = levels_y,
@@ -274,15 +312,17 @@ mod_ds_server <- function(dm_r, ds_r, output) {
       ggplot2::geom_text(
         aes(label = ifelse(n == 0, "", n),
             fontface = ifelse(is_header, "bold", "plain")),
-        size = 4
+        size = 5
       ) +
       ggplot2::scale_y_discrete(limits = rev(levels_y)) +
-      ggplot2::labs(title = "Disposition by ARM", x = NULL, y = NULL) +
+      ggplot2::labs(title = "", x = NULL, y = NULL) +
       ggplot2::theme_minimal(base_size = 13) +
       ggplot2::theme(
         panel.grid  = ggplot2::element_blank(),
         axis.text.x = ggplot2::element_text(angle = 35, hjust = 1),
-        axis.text.y = ggtext::element_markdown(size = 11),
+        axis.text.y = ggtext::element_markdown(
+          size = 11
+        ),
         plot.title  = ggplot2::element_text(hjust = 0, face = "bold")
       )
   })
