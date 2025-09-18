@@ -68,6 +68,7 @@ mod_cm_ui <- function() {
               # RIGHT: donut
               div(
                 style = "max-width:100%; overflow:hidden;",
+                uiOutput("cm_donut_message"),
                 plotOutput("donut_by_med", height = "380px")
               )
           )
@@ -132,6 +133,7 @@ mod_cm_ui <- function() {
                ),
                # MIDDLE: timeline
                div(style = "max-width:100%; overflow:hidden;",
+                   uiOutput("cm_timeline_message"),
                    plotOutput("cm_timeline", height = "460px")),
                # BOTTOM: NEW table
                div(class = "timeline-table",
@@ -223,6 +225,19 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
     all_arms %>%
       dplyr::left_join(counts, by = "ARM") %>%
       dplyr::mutate(n_subjects = tidyr::replace_na(n_subjects, 0L))
+  })
+  
+  # Creates a message for when a medication is not selected
+  output$cm_donut_message <- renderUI({
+    if (is.null(input$cmtrt_select) || input$cmtrt_select == "") {
+      div(
+        style = "padding:20px; font-size:16px; color:#555;
+        justify-content: center;
+        align-items: center;
+        text-align: center;",
+        "Please select a Medication (CMTRT) to view the CM donut chart."
+      )
+    }
   })
   
   # One donut: slices are ARMs for the chosen med
@@ -384,6 +399,19 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
     df
   })
   
+  # Creates a message for when a subject is not selected
+  output$cm_timeline_message <- renderUI({
+    if (is.null(input$usubj_select) || input$usubj_select == "") {
+      div(
+        style = "padding:20px; font-size:16px; color:#555;
+        justify-content: center;
+        align-items: center;
+        text-align: center;",
+        "Please select a Subject (USUBJID) to view the CM timeline."
+      )
+    }
+  })
+  
   # Plot the timeline
   output$cm_timeline <- renderPlot({
     si <- subject_info()
@@ -413,109 +441,77 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       rev()
     cs$CMTRT_f <- factor(cs$CMTRT, levels = levels_y)
     
-    # Limits with small padding
-    x_min <- min(cs$start_date, na.rm = TRUE)
-    x_max <- max(cs$end_vis, rfstd, rfend, na.rm = TRUE)
-    pad <- lubridate::days(7)
-    lims <- c(x_min - pad, x_max + pad)
+    # Create equal month spacing but allow day plotting
+    month_slot <- function(d) 12L * lubridate::year(d) + (lubridate::month(d) - 1L)
     
-    # target tick count from rendered width (fallback if NULL)
-    w <- session$clientData$output_cm_timeline_width
-    if (is.null(w)) w <- 800
-    target <- max(2, min(10, floor(w / 120))) 
-    
-    span_days <- as.numeric(diff(lims), units = "days")
-    # choose step given span and target relative to the timeline
-    step <- dplyr::case_when(
-      span_days <= 60 ~ "1 week",
-      span_days <= 150 & target >= 6 ~ "2 weeks",
-      span_days <= 240 ~ "1 month",
-      span_days <= 480 ~ "2 months",
-      span_days <= 900 ~ "3 months",
-      span_days <= 1500 ~ "6 months",
-      TRUE ~ "1 year"
-    )
-    
-    # helper: build sequence at chosen step
-    seq_by <- function(from, to, by) {
-      # snap to nice boundaries
-      unit <- dplyr::case_when(
-        grepl("week", by) ~ "week",
-        grepl("month", by) ~ "month",
-        grepl("year", by) ~ "year",
-        TRUE ~ "day"
-      )
-      from2 <- switch(
-        unit,
-        week = lubridate::floor_date(from, "week"),
-        month = lubridate::floor_date(from, "month"),
-        year = lubridate::floor_date(from, "year"),
-        lubridate::floor_date(from, "day")
-      )
-      seq.Date(from2, lubridate::ceiling_date(to, unit), by = by)
+    # helper functiont that helps plots the date
+    x_pos <- function(d) {
+      d <- as.Date(d)
+      mi <- month_slot(d)
+      frac <- (lubridate::mday(d) - 1) / as.integer(lubridate::days_in_month(d))
+      mi + frac
     }
     
-    # This will ensure there will be two dates at all times
-    eps <- lubridate::days(1)
-    breaks_adaptive <- function(l) {
-      inside <- seq_by(l[1], l[2], step)
-      if (length(inside) > target) {
-        inside <- inside[round(seq(1, length(inside), length.out = target))]
-      }
-      # endpoints
-      e1 <- l[1] + eps
-      e2 <- l[2] - eps
-      
-      # drop any inside tick whose *label text* equals an endpoint label
-      lab <- function(x) format(x, "%Y-%m")
-      inside <- inside[!(lab(inside) %in% c(lab(e1), lab(e2)))]
-      
-      sort(unique(c(e1, inside, e2)))
+    # helper function that helps make the date nicely formatted
+    label_ym <- function(mi) {
+      mi <- as.numeric(mi)
+      slot <- floor(mi + 1e-9)     
+      y  <- slot %/% 12L
+      m  <- (slot %% 12L) + 1L
+      sprintf("%04.0f-%02.0f", y, m)
     }
     
+    # x positions for bars and trial lines
+    cs$x_start <- x_pos(cs$start_date)
+    cs$x_end   <- x_pos(cs$end_vis)
+    rfstd_x <- if (!is.na(rfstd)) x_pos(rfstd) else NA_real_
+    rfend_x <- if (!is.na(rfend)) x_pos(rfend) else NA_real_
+    
+    # Ensure single-day bars are visible
+    cs$x_end_vis <- ifelse(cs$x_end <= cs$x_start, cs$x_start + 0.02, cs$x_end)
+    
+    # Limits pades 0.1 to make sure that plots are shown
+    x_min <- min(cs$x_start, na.rm = TRUE)
+    x_max <- max(cs$x_end_vis, rfstd_x, rfend_x, na.rm = TRUE)
+    lims  <- c(floor(x_min) - 0.5, ceiling(x_max) + 0.5)
+    
+    # Integer month ticks only (prevents duplicate labels)
+    base_breaks <- seq(from = floor(lims[1]), to = ceiling(lims[2]), by = 1L)
+    
+    # Ggplot for the timeline
     g <- ggplot2::ggplot(cs) +
       ggplot2::geom_segment(
-        ggplot2::aes(x = start_date, xend = end_vis, y = CMTRT_f, yend = CMTRT_f),
+        ggplot2::aes(x = x_start, xend = x_end_vis, y = CMTRT_f, yend = CMTRT_f),
         linewidth = 4, lineend = "round", colour = "#2c3e50"
       ) +
-      # Trial start line
-      (if (!is.na(rfstd))
-        ggplot2::geom_vline(
-          xintercept = rfstd,  
-          linetype = "dashed", 
-          colour = "#d62728", 
-          linewidth = 0.9
-          )
-       else NULL) +
-      # Trial end line
-      (if (!is.na(rfend))
-        ggplot2::geom_vline(
-          xintercept = rfend,  
-          linetype = "dotted", 
-          colour = "#1f77b4", 
-          linewidth = 0.9
-          )
-       else NULL) +
-      ggplot2::scale_x_date(
+      # Creates the start/end treatment reference lines
+      (if (!is.na(rfstd_x))
+        ggplot2::geom_vline(xintercept = rfstd_x, linetype = "dashed",
+                            colour = "#d62728", linewidth = 0.9) else NULL) +
+      (if (!is.na(rfend_x))
+        ggplot2::geom_vline(xintercept = rfend_x, linetype = "dotted",
+                            colour = "#1f77b4", linewidth = 0.9) else NULL) +
+      
+      # sets up the x axis for the timeline dates
+      ggplot2::scale_x_continuous(
         limits = lims,
-        breaks = breaks_adaptive,
-        labels  = scales::label_date("%Y-%m"),
-        guide = ggplot2::guide_axis(check.overlap = TRUE),
-        expand  = ggplot2::expansion(mult = c(0.02, 0.02))
+        breaks = base_breaks,
+        labels = label_ym,
+        expand = ggplot2::expansion(add = c(0.05, 0.05))
       ) +
+      # Makes sure dates dont overlap
+      ggplot2::guides(x = ggplot2::guide_axis(check.overlap = TRUE)) +
+      # title label for the timeline
       ggplot2::labs(
         title = paste0("CM Timeline — Subject: ", si$USUBJID[1]),
         subtitle = paste0(
           "ARM: ", si$ARM[1],
-          if (!is.na(rfstd)) 
-            paste0("\nTreatment Start (dashed red): ", format(rfstd, "%Y-%m-%d")) 
-          else "",
-          if (!is.na(rfend)) 
-            paste0("\nTreatment End (dotted blue): ", format(rfend, "%Y-%m-%d")) 
-          else ""
+          if (!is.na(rfstd)) paste0("\nTreatment Start (dashed red): ", format(rfstd, "%Y-%m-%d")) else "",
+          if (!is.na(rfend)) paste0("\nTreatment End (dotted blue): ", format(rfend, "%Y-%m-%d")) else ""
         ),
         x = NULL, y = NULL
       ) +
+      # creates the theme
       ggplot2::theme_minimal(base_size = 13) +
       ggplot2::theme(
         plot.title = ggplot2::element_text(hjust = 0, face = "bold", colour = "black"),
@@ -523,9 +519,9 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
         panel.grid.minor = ggplot2::element_blank(),
         panel.grid.major.y = ggplot2::element_blank(),
         axis.text.y = ggplot2::element_text(colour = "black"),
-        axis.text.x = ggplot2::element_text(colour = "black", angle = 30, hjust = 1)
+        axis.text.x = ggplot2::element_text(colour = "black", angle = 30, hjust = 1),
+        axis.ticks.x = ggplot2::element_line()
       )
-    
     g
   })
   
