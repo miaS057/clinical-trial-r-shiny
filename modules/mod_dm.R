@@ -89,7 +89,31 @@ dm_plot_cards <- card(
 )
 
 
-total_table_form <- function(df, category){
+
+
+# ---------------------------------------------------------------------------- #
+# ----------------------------- HELPER FUNCTIONS ----------------------------- #
+# ---------------------------------------------------------------------------- #
+
+dm_table_form <- function(df, category){
+  df <- df %>% 
+    group_by(ARM)
+  
+  if(category == "RACE") {df <- count(df, RACE)}
+  else {df <- count(df, SEX)}
+  
+  df <- df %>% 
+    mutate(Total = paste0(n, " (", scales::percent(prop.table(n)), ")")) 
+  df$n <- NULL
+  df <- df %>% spread(ARM, Total) %>% 
+    cbind(Category = paste0(category, ", n (%)"))
+  colnames(df)[which(names(df) == category)] <- "Variables"
+  
+  return (df)
+}
+
+
+dm_total_table_form <- function(df, category){
   df <- df %>% 
     mutate(Total = paste0(n, " (", scales::percent(prop.table(n)), ")")) 
   colnames(df)[which(names(df) == category)] <- "Variables"
@@ -98,7 +122,8 @@ total_table_form <- function(df, category){
   return (df)
 }
 
-age_table_form <- function(df, category = ""){
+
+dm_age_table_form <- function(df, category = ""){
   if (category == "") {
     df <- df %>% group_by(ARM)
   }
@@ -132,31 +157,16 @@ age_table_form <- function(df, category = ""){
   return (df)
 }
 
-table_form <- function(df, category){
-  df <- df %>% 
-    group_by(ARM)
-  
-  if(category == "RACE") {df <- count(df, RACE)}
-  else {df <- count(df, SEX)}
-  
-  df <- df %>% 
-    mutate(Total = paste0(n, " (", scales::percent(prop.table(n)), ")")) 
-  df$n <- NULL
-  df <- df %>% spread(ARM, Total) %>% cbind(Category = category)
-  colnames(df)[which(names(df) == category)] <- "Variables"
-  
-  return (df)
-}
+
 
 
 # ---------------------------------------------------------------------------- #
 # ---------------------------------- SERVER ---------------------------------- #
 # ---------------------------------------------------------------------------- #
 mod_dm_server <- function(input, output, dm_r) {
-  dm_all <- reactive({dm_r()})
   dm <- reactive({
-    dm_all()[as.Date(dm_all()$RFSTDTC) %inrange%
-               as.Date(input$date_select),,drop=FALSE]
+    dm_r()[as.Date(dm_r()$RFSTDTC) %inrange%
+             as.Date(input$date_select),,drop=FALSE]
   })
   
   
@@ -167,14 +177,16 @@ mod_dm_server <- function(input, output, dm_r) {
       age_df <- dm()
     }
     if(input$site_select != "All sites combined"){
-      age_df <- dm() %>% filter(SITEID == input$site_select)
+      age_df <- dm() %>% 
+        filter(SITEID == input$site_select)
     }
     
     if(nrow(age_df) == 0){
       empty_plot <- ggplot() +
-        labs(title = "Age boxplot by treatment and sex",
-             x = "Treatment",
-             y = "Age")
+        labs(
+          title = "Age boxplot by treatment and sex",
+          x = "Treatment",
+          y = "Age")
       return(empty_plot)
     }
     
@@ -183,10 +195,11 @@ mod_dm_server <- function(input, output, dm_r) {
       y = AGE,
       fill = SEX)) +
       geom_boxplot() +
-      labs(title = "Age by treatment and sex",
-           x = "Treatment",
-           y = "Age",
-           fill = "Sex") +
+      labs(
+        title = "Age by treatment and sex",
+        x = "Treatment",
+        y = "Age",
+        fill = "Sex") +
       theme(
         legend.text = element_text(size = 7),
         axis.text.x = element_text(angle = -45)
@@ -199,20 +212,25 @@ mod_dm_server <- function(input, output, dm_r) {
   # ------------ Race Bar Chart ------------ #
   output$race_plot <- renderPlotly({
     
-    wrap_label <- dm() %>% mutate(RACE = str_wrap(RACE, width = 17))
+    wrap_label <- dm() %>% 
+      mutate(RACE = str_wrap(RACE, width = 17))
     
     palette1_named <- setNames(
       object = scales::hue_pal()(length(unique(wrap_label$RACE))),
       nm = unique(wrap_label$RACE))
     
     if(input$site_select == "All sites combined"){
-      race_df <- dm() %>% group_by(ARM, RACE) %>% count(RACE)
-    }
-    else{
-      race_df <- dm() %>% filter(SITEID == input$site_select) %>%
+      race_df <- dm() %>% 
         group_by(ARM, RACE) %>% count(RACE)
     }
-    race_df <- race_df %>% mutate(RACE = str_wrap(RACE, width = 17))
+    else{
+      race_df <- dm() %>% 
+        filter(SITEID == input$site_select) %>%
+        group_by(ARM, RACE) %>% 
+        count(RACE)
+    }
+    race_df <- race_df %>% 
+      mutate(RACE = str_wrap(RACE, width = 17))
     
     race_by_arm_plot <- ggplot(race_df, aes(
       x = ARM,
@@ -220,17 +238,19 @@ mod_dm_server <- function(input, output, dm_r) {
       text = paste0("Count: ", n),
       fill = RACE)) +
       geom_bar(stat = "identity", position = "dodge") +
-      labs(title = "Number of subjects in each treatment by race",
-           x = "Treatment",
-           y = "Count",
-           fill = "Race") +
-      scale_fill_manual(values = palette1_named) +
+      labs(
+        title = "Number of subjects in each treatment by race",
+        x = "Treatment",
+        y = "Count",
+        fill = "Race") +
+      scale_fill_manual(
+        values = palette1_named) +
       theme(
         legend.text = element_text(size = 7),
         axis.text.x = element_text(angle = -45)
       )
-    
     return(ggplotly(race_by_arm_plot, tooltip = "text"))
+    
   })
   
   
@@ -240,16 +260,18 @@ mod_dm_server <- function(input, output, dm_r) {
   output$sex_plot <- renderPlotly({
     
     if(input$site_select == "All sites combined"){
-      sex_df <- dm() %>% count(SEX, ARM)
+      sex_df <- dm() %>% 
+        count(SEX, ARM)
     }
     if(input$site_select != "All sites combined"){
-      sex_df <- dm() %>% filter(SITEID == input$site_select) %>%
+      sex_df <- dm() %>% 
+        filter(SITEID == input$site_select) %>%
         count(SEX, ARM)
     }
     
     sex_by_arm_plot <- ggplot(sex_df, aes(
-      x=ARM,
-      y=n,
+      x = ARM,
+      y = n,
       text = paste0("Count: ", n),
       fill = SEX)) +
       geom_bar(stat = "identity") +
@@ -263,6 +285,7 @@ mod_dm_server <- function(input, output, dm_r) {
         axis.text.x = element_text(angle = -45)
       )
     return(ggplotly(sex_by_arm_plot, tooltip = "text"))
+    
   })
   
   
@@ -270,22 +293,28 @@ mod_dm_server <- function(input, output, dm_r) {
   output$country_plot <- renderPlot({
     
     if(input$site_select == "All sites combined"){
-      country_df <- dm() %>% group_by(COUNTRY, SITEID) %>% count(COUNTRY)
+      country_df <- dm() %>% 
+        group_by(COUNTRY, SITEID) %>% 
+        count(COUNTRY)
     }
     if(input$site_select != "All sites combined"){
-      country_df <- dm() %>% filter(SITEID == input$site_select) %>%
-        group_by(COUNTRY, SITEID) %>% count(COUNTRY)
+      country_df <- dm() %>% 
+        filter(SITEID == input$site_select) %>%
+        group_by(COUNTRY, SITEID) %>% 
+        count(COUNTRY)
     }
-    #country_df <- dm() %>% group_by(COUNTRY, SITEID) %>% count(COUNTRY)
     
     ggplot(country_df, aes(
       area = n,
       fill = COUNTRY,
-      label = paste0("SiteID: ",SITEID,"\nNumber of Subjects: ",n),
+      label = paste0("SiteID: ",SITEID,"\nNumber of Subjects: ", n),
       subgroup = COUNTRY)) +
-      geom_treemap()+
-      geom_treemap_text(place = "centre", size = 12) +
-      labs(title = "Number of subjects per site for each country") +
+      geom_treemap() +
+      geom_treemap_text(
+        place = "centre", 
+        size = 12) +
+      labs(
+        title = "Number of subjects per site for each country") +
       theme(plot.title = element_text(size = 19))
     
   })
@@ -296,15 +325,15 @@ mod_dm_server <- function(input, output, dm_r) {
   
   output$summary_table <- render_gt({
     
-    race_total_df <- total_table_form(count(dm(), RACE), "RACE")
-    sex_total_df <- total_table_form(count(dm(), SEX), "SEX")
+    race_total_df <- dm_total_table_form(count(dm(), RACE), "RACE")
+    sex_total_df <- dm_total_table_form(count(dm(), SEX), "SEX")
     
-    race_df <- table_form(dm(), "RACE")
+    race_df <- dm_table_form(dm(), "RACE")
     race_df[is.na(race_df)] = "0 (0%)"
-    sex_df <- table_form(dm(), "SEX")
+    sex_df <- dm_table_form(dm(), "SEX")
     
-    age_total_df <- age_table_form(dm(), category = "total")
-    age_df <- age_table_form(dm())
+    age_total_df <- dm_age_table_form(dm(), category = "total")
+    age_df <- dm_age_table_form(dm())
     
     combined_total_df <- rbind(race_total_df, sex_total_df)
     combined_total_df <- rbind(combined_total_df, age_total_df)
@@ -321,7 +350,8 @@ mod_dm_server <- function(input, output, dm_r) {
     names(total) <- c("ARM", "n")
     
     arm_total <- rbind(arm_total, total)
-    col_names <- names(combined_df[, !names(combined_df) %in% c("Variables", "Category")] )
+    col_names <- names(combined_df[, !names(combined_df) %in% 
+                                     c("Variables", "Category")] )
     arm_total <- arm_total[match(col_names, arm_total$ARM),]
     
     for (name in col_names){
@@ -329,32 +359,13 @@ mod_dm_server <- function(input, output, dm_r) {
         name, " (N = ", arm_total[arm_total$ARM == name, "n"], ")")
     }
     
-    gt_tbl <- gt(combined_df)
     gt_tbl <-
       combined_df |>
-      gt(rowname_col = "Variables")
-    
-    gt_tbl <-
-      gt_tbl |>
+      group_by(Category) |>
+      gt(rowname_col = "Variables") |>
       tab_stubhead(label = "Variables") |>
       tab_header(
         title = "Demographics Summary Table"
-      ) |>
-      tab_row_group(
-        label = "Race, n (%)",
-        rows = (Category == "RACE")
-      ) |>
-      tab_row_group(
-        label = "Sex, n (%)",
-        rows = (Category == "SEX")
-      ) |>
-      tab_row_group(
-        label = "Age",
-        rows = (Category == "Age")
-      ) |>
-      tab_stub_indent(
-        rows = everything(),
-        indent = 3
       ) |>
       cols_align(
         align = "center",
@@ -367,6 +378,5 @@ mod_dm_server <- function(input, output, dm_r) {
   })
   
 }
-
 
 
