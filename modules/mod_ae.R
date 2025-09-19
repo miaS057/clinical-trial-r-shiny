@@ -7,8 +7,8 @@ library(bslib)
 library(shiny)
 library(lubridate)
 library(data.table)
-library(treemapify)
 library(gt)
+library(reshape2)
 library(pharmaversesdtm)
 
 data(package = "pharmaversesdtm")
@@ -17,83 +17,195 @@ data(package = "pharmaversesdtm")
 # ------------------------------------ UI ------------------------------------ #
 # ---------------------------------------------------------------------------- #
 
-
 mod_ae_ui <- function() {
   ae_plot_cards
 }
 
-dm_arm <- dm %>% 
-  filter(ARM != "Screen Failure")
-filtered_ae <- ae %>% filter(AEREL != "NA") %>% 
-  sort_by(~ list(AEDECOD))
+join_ae_dm_df <- left_join(ae, dm, by = "USUBJID")
+filtered_ae_dm_df <- join_ae_dm_df %>% 
+  filter(ACTARM != "Screen Failure" &
+          AEREL != "NA")
 
 arm_select <- selectizeInput(
   inputId = "arm_select",
   label = "Selected treatment (Max 2 selections)",
-  choices = unique(dm_arm$ARM),
-  selected = unique(dm_arm$ARM)[1:2],
+  choices = unique(filtered_ae_dm_df$ACTARM),
+  selected = unique(filtered_ae_dm_df$ACTARM)[1:2],
   multiple = TRUE,
-  options = list(maxItems = 2))
+  options = list(maxItems = 2, dropdownParent = 'body'),
+  )
 
-sev_select <- selectInput(
+sev_select <- selectizeInput(
   inputId = "sev_select",
   label = "Selected AE severity",
   choices = unique(ae$AESEV),
-  selected = unique(filtered_ae$AESEV),
-  multiple = TRUE,)
+  selected = unique(filtered_ae_dm_df$AESEV),
+  multiple = TRUE,
+  options = list(dropdownParent = 'body'))
 
-rel_select <- selectInput(
+rel_select <- selectizeInput(
   inputId = "rel_select",
   label = "Selected relatedness",
-  choices = unique(filtered_ae$AEREL),
-  selected = filtered_ae$AEREL[filtered_ae$AEREL != "NONE"],
-  multiple = TRUE,)
+  choices = unique(filtered_ae_dm_df$AEREL),
+  selected = filtered_ae_dm_df$AEREL[filtered_ae_dm_df$AEREL != "NONE"],
+  multiple = TRUE,
+  options = list(dropdownParent = 'body'))
 
-aedecod_select <- selectInput(
+aedecod_select <- selectizeInput(
   inputId = "aedecod_select",
   label = "Selected AEDECOD",
-  choices = unique(filtered_ae$AEDECOD),
-  selected = unique(filtered_ae$AEDECOD)[1:5],
-  multiple = TRUE,)
+  choices = sort(unique(filtered_ae_dm_df$AEDECOD)),
+  selected = sort(unique(filtered_ae_dm_df$AEDECOD))[1:3],
+  multiple = TRUE,
+  options = list(dropdownParent = 'body'))
+
+bodsys_select <- selectizeInput(
+  inputId = "aebodsys_select",
+  label = "Selected AEBODSYS",
+  choices = sort(unique(filtered_ae_dm_df$AEBODSYS)),
+  selected = sort(unique(filtered_ae_dm_df$AEBODSYS))[1:3],
+  multiple = TRUE,
+  options = list(dropdownParent = 'body'))
+
+subj_select <- selectizeInput(
+  inputId = "subj_select",
+  label = "Selected USUBJID",
+  choices = unique(filtered_ae_dm_df$USUBJID),
+  selected = unique(filtered_ae_dm_df$USUBJID)[1],
+  options = list(dropdownParent = 'body')
+)
 
 
 
 filters <- card(
   full_screen = TRUE,
-  card_body(
-    min_height = 150,
-    layout_column_wrap(
-      width = 1/2,
-      card(full_screen = TRUE, arm_select),
-      card(full_screen = TRUE, sev_select),
-      card(full_screen = TRUE, rel_select),
-      card(full_screen = TRUE, aedecod_select)
+  card(full_screen = TRUE, arm_select),
+  card(full_screen = TRUE, sev_select),
+  card(full_screen = TRUE, rel_select),
+  card(full_screen = TRUE, aedecod_select),
+  card(full_screen = TRUE, bodsys_select)
+)
+
+
+ae_plot_cards <- navset_card_tab(
+  full_screen = TRUE,
+  nav_panel(
+    "General Data",
+    card(
+      layout_sidebar(
+        fillable = TRUE,
+        sidebar = sidebar(
+          filters
+        ),
+      card_body(
+        padding = c(0, 0, 40, 0),
+        plotlyOutput(outputId = "aedecod_butterfly_plot")
+      )
+    )),
+    card_body(
+      layout_column_wrap(
+        width = 1/2,
+        card_body(padding = c(0, 15, 50, 10), gt_output("decod_summary_table")),
+        card_body(padding = c(0, 30, 50, 15), gt_output("bodsys_summary_table"))
+      )
     )
+  ),
+  nav_panel(
+    "Subject Data",
+    card(
+      full_screen = TRUE,
+      card_body(
+        padding = c(30, 0, 0, 0), 
+        subj_select),
+        card_body(
+          plotOutput(outputId = "subj_ae_timeline_plot"),
+          gt_output("subj_summary_table")
+          )
+        )
   )
 )
 
 
-ae_plot_cards <- card(
-  full_screen = TRUE,
-  filters,
-  card_body(
-    padding = c(0, 0, 40, 0),
-    plotlyOutput(outputId = "aedecod_butterfly_plot")
-    )
-  
-)
 
+# ---------------------------------------------------------------------------- #
+# ----------------------------- HELPER FUNCTIONS ----------------------------- #
+# ---------------------------------------------------------------------------- #
+
+ae_table_form <- function(df, category, total_count, arm_count){
+
+  if(category == "AEDECOD") {
+    tot_df <- df %>% count(AEDECOD)
+    df <- df %>% group_by(ACTARM, AEDECOD) %>% count(AEDECOD)
+  }
+  else if(category == "AEBODSYS") {
+    tot_df <- df %>% count(AEBODSYS)
+    df <- df %>% group_by(ACTARM, AEBODSYS) %>% count(AEBODSYS)
+  }
+  merged_df <- merge(df, arm_count, by = "ACTARM")
+  
+  merged_df <- merged_df %>% 
+    mutate(Npct = paste0(
+      n.x, " (", round(((n.x / n.y) * 100), digits = 2), "%)"))
+  merged_df$n.x <- NULL
+  merged_df$n.y <- NULL
+  merged_df <- merged_df %>% spread(ACTARM, Npct)
+  merged_df[is.na(merged_df)] = "0 (0%)"
+  
+  tot_df$Tot <- total_count
+  tot_df <- tot_df %>% 
+    mutate(Total = paste0(
+      n, " (", round(((n / Tot) * 100), digits = 2), "%)"))
+  tot_df$n <- NULL
+  tot_df$Tot <- NULL
+  
+  merged_all <- merge(merged_df, tot_df, by = category)
+  return (merged_all)
+}
+
+attach_n <- function(df, category, total_count, arm_count){
+  total <- data.frame("Total", total_count)
+  names(total) <- c("ACTARM", "n")
+  
+  ae_arm_total <- rbind(arm_count, total)
+  
+  col_names <- names(df[, !(names(df) == category)])
+  ae_arm_total <- ae_arm_total[match(col_names, ae_arm_total$ACTARM),]
+  
+  for (name in col_names){
+    colnames(df)[which(names(df) == name)] <- paste0(
+      name, " (N = ", ae_arm_total[ae_arm_total$ACTARM == name, "n"], ")")
+  }
+  
+  return (df)
+}
+
+to_date <- function(date){
+  return (as.Date(date))
+} 
 
 
 # ---------------------------------------------------------------------------- #
 # ---------------------------------- SERVER ---------------------------------- #
 # ---------------------------------------------------------------------------- #
 mod_ae_server <- function(input, output, dm_r, ae_r) {
-  dm <- reactive({dm_r() %>% filter(ARM != "Screen Failure")})
-  ae <- reactive({ae_r() %>% filter(AEREL != "NA")})
+  dm <- reactive({dm_r() %>% 
+      filter(ACTARM != "Screen Failure")})
+  ae <- reactive({ae_r() %>% 
+      filter(AEREL != "NA")})
   
   ae_dm_df <- reactive({left_join(ae(), dm(), by = "USUBJID")})
   
+  filtered_ae_dm_df <- reactive({
+    ae_dm_df() %>% 
+      filter(ACTARM %in% input$arm_select &
+               AEREL %in% input$rel_select & 
+             AESEV %in% input$sev_select)
+  })
+  
+  filtered_ae_dm <- reactive({
+    filtered_ae_dm_df()[c("USUBJID", "ACTARM", "AEDECOD", "AESEV", 
+                          "AEREL", "AEBODSYS")]
+  })
   
   # ------------ AEDECOD Butterfly Plot ------------ #
   output$aedecod_butterfly_plot <- renderPlotly({
@@ -101,23 +213,21 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     arm_1 <- input$arm_select[1]
     arm_2 <- input$arm_select[2]
     
-    arms_df <- ae_dm_df() %>% 
-      filter(AEDECOD %in% input$aedecod_select & 
-               AEREL %in% input$rel_select & 
-               AESEV %in% input$sev_select &
-               ARM %in% input$arm_select) %>% 
-      group_by(AEDECOD, ARM, AESEV) %>% count(AEDECOD) 
+    arms_df <- filtered_ae_dm() %>% 
+      filter(AEDECOD %in% input$aedecod_select) %>% 
+      group_by(AEDECOD, ACTARM, AESEV) %>% 
+      count(AEDECOD) 
 
     arms_pyramid <- arms_df %>%
       mutate(
         n = case_when(
-          ARM == arm_1 ~ -n,
+          ACTARM == arm_1 ~ -n,
           TRUE ~ n
         )
       )
 
     max_range <- arms_pyramid %>% 
-      group_by(AEDECOD, ARM) %>% 
+      group_by(AEDECOD, ACTARM) %>% 
       summarise(n = sum(abs(n)))
     
     n_range <- range(max_range$n)
@@ -132,12 +242,13 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       c(pretty_vec_1, pretty_vec_2),
       n = 10
     )
+    
     aedecod_sev_plot <- ggplot(arms_pyramid,
                    aes(x = n,
                        y = AEDECOD,
                        text = paste0("Count: ", abs(n)),
                        fill = AESEV)) +
-      geom_col() +
+      geom_col(width = 0.3) +
       scale_x_continuous(breaks  = n_range_seq,
                          labels = abs(n_range_seq)) +
       expand_limits(x = range(n_range_seq)) +
@@ -147,20 +258,280 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
                        arm_1, " (left) and ", arm_2, " (right)"),
         x = "Count"
       ) + 
-      theme(plot.margin = unit(c(0.5, 0, 0, 0.5), "inches"))
+      theme(plot.margin = unit(c(0.5, 0, 0, 0.5), "inches")) 
 
     return(ggplotly(aedecod_sev_plot, tooltip = "text"))
   })
   
   
-  
-  
-  
-  
-  
-  
+  # ------------ AEDECOD Summary Table ------------ #
+  output$decod_summary_table <- render_gt({
+    
+    total_rows <- nrow(ae_dm_df())
+    arm_rows <- ae_dm_df() %>% 
+      filter(ACTARM %in% input$arm_select) %>% 
+      count(ACTARM)
+    decod_filtered_df <- filtered_ae_dm() %>% 
+      filter(AEDECOD %in% input$aedecod_select)
 
+    aedecod_table_df <- ae_table_form(decod_filtered_df, 
+                                      "AEDECOD", total_rows, arm_rows)
+    final_aedecod_table_df <- attach_n(aedecod_table_df, 
+                                       "AEDECOD", total_rows, arm_rows)
+    
+    col_names <- names(
+      final_aedecod_table_df[, !(names(final_aedecod_table_df) == "AEDECOD")]
+      )
+    
+    zero_val_decod <- ae_dm_df() %>% 
+      filter(AEDECOD %in% input$aedecod_select & 
+               !(AEDECOD %in% final_aedecod_table_df$AEDECOD))
+    zero_val_decod <- unique(zero_val_decod$AEDECOD)
+    npct <- rep("0 (0%)", times = length(zero_val_decod)) 
+    
+    zero_val_decod_df <- data.frame(zero_val_decod, npct, npct, npct)
+    
+    names(zero_val_decod_df) <- c("AEDECOD", col_names)
+    
+    final_aedecod_table_zero_vals_df <- rbind(final_aedecod_table_df, 
+                                              zero_val_decod_df)
+    
+    
+    aedecod_gt_tbl <-
+      final_aedecod_table_zero_vals_df |>
+      gt(rowname_col = "AEDECOD")
+    
+    
+    aedecod_gt_tbl <-
+      aedecod_gt_tbl |>
+      tab_stubhead(label = "AEDECOD") |>
+      tab_header(
+        title = "Selected AEDECOD Summary Table"
+      ) |>
+      tab_stub_indent(
+        rows = everything(),
+        indent = 3
+      ) |>
+      cols_align(
+        align = "center",
+        columns = c(!contains("AEDECOD"))
+      ) |> 
+      cols_hide(
+        columns = !contains(c(input$arm_select, "Total"))
+      ) |>
+      opt_vertical_padding(scale = 1)
+    
+  })
   
+  
+  # ------------ AEBODSYS Summary Table ------------ #
+  
+  output$bodsys_summary_table <- render_gt({
+    
+    total_rows <- nrow(ae_dm_df())
+    arm_rows <- ae_dm_df() %>% 
+      filter(ACTARM %in% input$arm_select) %>% 
+      count(ACTARM)
+    bodsys_filtered_df <- filtered_ae_dm() %>% 
+      filter(AEBODSYS %in% input$aebodsys_select)   
+    
+    aebodsys_table_df <- ae_table_form(bodsys_filtered_df, 
+                                       "AEBODSYS", total_rows, arm_rows)
+    final_aebodsys_table_df <- attach_n(aebodsys_table_df, 
+                                        "AEBODSYS", total_rows, arm_rows)
+    
+    
+    col_names <- names(
+      final_aebodsys_table_df[, !(names(final_aebodsys_table_df) == "AEBODSYS")]
+      )
+    
+    zero_val_bodsys <- ae_dm_df() %>% 
+      filter(AEBODSYS %in% input$aebodsys_select & 
+               !(AEBODSYS %in% final_aebodsys_table_df$AEBODSYS))
+    zero_val_bodsys <- unique(zero_val_bodsys$AEBODSYS)
+    npct <- rep("0 (0%)", times = length(zero_val_bodsys)) 
+    
+    zero_val_bodsys_df <- data.frame(zero_val_bodsys, npct, npct, npct)
+    
+    names(zero_val_bodsys_df) <- c("AEBODSYS", col_names)
+    
+    final_aebodsys_table_zero_vals_df <- rbind(final_aebodsys_table_df, 
+                                               zero_val_bodsys_df)
+    
+    
+    bodsys_gt_tbl <-
+      final_aebodsys_table_zero_vals_df |>
+      gt(rowname_col = "AEBODSYS")
+    
+    
+    bodsys_gt_tbl <-
+      bodsys_gt_tbl |>
+      tab_stubhead(label = "AEBODSYS") |>
+      tab_header(
+        title = "Selected AEBODSYS Summary Table"
+      ) |>
+      tab_stub_indent(
+        rows = everything(),
+        indent = 3
+      ) |>
+      cols_align(
+        align = "center",
+        columns = (!contains("AEBODSYS"))
+      ) |>
+      cols_hide(
+        columns = !contains(c(input$arm_select, "Total"))
+      ) |>
+      opt_vertical_padding(scale = 1)|>
+      opt_horizontal_padding(scale = 3)
+    
+    
+  })
+  
+  
+  # ------------ Subject AE Date Range Plot  ------------ #
+
+  output$subj_ae_timeline_plot <- renderPlot({
+    
+    subj_df <- ae_dm_df() %>% 
+      filter(USUBJID == input$subj_select)
+    timeline_df <- subj_df[c("USUBJID", "ACTARM", "AEDECOD", "RFSTDTC", 
+                             "RFENDTC", "AESTDTC", "AEENDTC")]
+    print(timeline_df)
+    timeline_df <- timeline_df %>% 
+      drop_na(AESTDTC)
+    timeline_df <- timeline_df %>% 
+      filter(nchar(AESTDTC) == 10)
+    
+    if(nrow(timeline_df) == 0){
+      timeline_df <- subj_df
+      timeline_df <- data.frame(timeline_df[c("AEDECOD")], 
+                                lapply(timeline_df[c("RFSTDTC", 
+                                                     "RFENDTC")], to_date) )
+      melted_df <- melt(timeline_df, measure.vars = c("RFSTDTC", "RFENDTC"))
+      
+      min_date <- ymd(min(timeline_df$RFSTDTC)) - months(1)
+      max_date <- ymd(min(timeline_df$RFENDTC)) + months(1)
+      
+      timeline_plot <- ggplot(melted_df, aes(
+        x = value, 
+        y = AEDECOD)) + 
+        geom_point() +
+        theme_minimal() +
+        theme(
+          aspect.ratio = 0.4, 
+          axis.text = element_text(size = 7)) +
+        scale_x_date(
+          limits = c(min_date, max_date), 
+          date_breaks = "1 month", 
+          date_labels = "%b %d") +
+        labs(
+          x = "Date",
+          y = "AEDECOD",
+          title = "Date range for each adverse event"
+        ) 
+      return(timeline_plot)
+    }
+    
+    
+    min_date <- ymd(min(c(min(timeline_df$RFSTDTC), 
+                          min(timeline_df$AESTDTC)))) - months(1)
+    max_date <- ymd(max(c(max(timeline_df$RFENDTC), 
+                          max(timeline_df$AEENDTC)))) + months(1)
+    
+    
+    
+    timeline_df$AEENDTC_COPY <- timeline_df$AEENDTC
+    timeline_df$AESTDTC_COPY <- timeline_df$AESTDTC
+    
+    timeline_df <- timeline_df %>%
+      mutate(AEENDTC = ifelse(is.na(timeline_df$AEENDTC), AESTDTC, AEENDTC))
+    
+    timeline_df <- data.frame(timeline_df[c("AEDECOD", "AEENDTC_COPY")], 
+                              lapply(timeline_df[c("RFSTDTC", "RFENDTC", 
+                                                   "AESTDTC", "AEENDTC", 
+                                                   "AESTDTC_COPY")], to_date) )
+    
+    timeline_df$UNIQUEID <- seq_len(nrow(timeline_df))
+    timeline_df<- timeline_df %>%
+      mutate(AEDECOD_DATE = paste0(AEDECOD, "-", UNIQUEID))
+    
+    melted_df <- melt(timeline_df, measure.vars = c("AESTDTC", "AEENDTC"))
+    
+    
+    timeline_plot <- ggplot(melted_df, aes(
+      x = value, 
+      y = AEDECOD_DATE)) +
+      geom_point(aes(
+        x = AESTDTC_COPY,  
+        color = "orange"), 
+        size = 4) +
+      geom_line(aes(
+        color = "orange"),
+      size = 5, 
+      lineend = "round") +
+      theme_minimal() +
+      theme(
+        aspect.ratio = 0.4, 
+        axis.text = element_text(size = 7), 
+        legend.position="none") +
+      geom_point(aes(
+        x = RFSTDTC)) +
+      geom_point(aes(
+        x = RFENDTC)) +
+      scale_x_date(
+        limits = c(min_date, max_date), 
+        date_breaks = "1 month", 
+        date_labels = "%b %d") +
+      labs(
+        x = "Date",
+        y = "AEDECOD",
+        title = "Date range for each adverse event"
+      ) + 
+      scale_y_discrete(
+        labels = sub("-.*", "", melted_df$AEDECOD_DATE)) +
+      theme(
+        axis.text.x = element_text(angle = 45),
+        axis.text = element_text(size = 12))
+    
+    return(timeline_plot)
+    
+  })
+  
+  
+  # ------------ Subject AE Summary Table  ------------ #
+  
+  output$subj_summary_table <- render_gt({
+    
+    table_timeline_df <- ae_dm_df() %>% filter(USUBJID == input$subj_select)
+    table_timeline_df <- table_timeline_df[c("USUBJID", "ACTARM", "AEDECOD", 
+                                             "RFSTDTC", "RFENDTC", "AESTDTC", 
+                                             "AEENDTC")]
+    
+    
+    subj_gt_tbl <-
+      table_timeline_df |>
+      gt(rowname_col = "AEDECOD")
+    
+    subj_gt_tbl <-
+      subj_gt_tbl |>
+      tab_stubhead(label = "AEDECOD") |>
+      tab_header(
+        title = "Selected AEBODSYS Summary Table"
+      ) |>
+      tab_stub_indent(
+        rows = everything(),
+        indent = 3
+      ) |>
+      cols_align(
+        align = "center",
+        columns = (!contains("AEDECOD"))
+      ) |>
+      cols_hide(
+        columns = c("USUBJID", "ACTARM")
+      ) |>
+      opt_vertical_padding(scale = 3) |>
+      opt_horizontal_padding(scale = 3)
+  })
   
 }
 
