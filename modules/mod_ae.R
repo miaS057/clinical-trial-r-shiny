@@ -396,7 +396,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       filter(USUBJID == input$subj_select)
     timeline_df <- subj_df[c("USUBJID", "ACTARM", "AEDECOD", "RFSTDTC", 
                              "RFENDTC", "AESTDTC", "AEENDTC")]
-    print(timeline_df)
+    
     timeline_df <- timeline_df %>% 
       drop_na(AESTDTC)
     timeline_df <- timeline_df %>% 
