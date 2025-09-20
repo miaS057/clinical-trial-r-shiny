@@ -13,7 +13,10 @@ library(pharmaversesdtm)
 
 data(package = "pharmaversesdtm")
 
+
+# --- Load in dm data --- #
 #source("data.R")
+#dm <- get_dm()
 
 # ---------------------------------------------------------------------------- #
 # ------------------------------------ UI ------------------------------------ #
@@ -24,8 +27,7 @@ mod_dm_ui <- function() {
   dm_plot_cards
 }
 
-#dm <- get_dm()
-
+# Get min and max date for select_date
 min_date <- as.Date(min(dm$RFSTDTC, na.rm=TRUE))
 max_date <- as.Date(max(dm$RFSTDTC, na.rm=TRUE))
 
@@ -44,7 +46,7 @@ select_date <- sliderInput(
   value = c(min_date, max_date),
   timeFormat = "%Y-%m-%d")
 
-
+# Card for filter selections
 filters <- card(
   full_screen = TRUE,
   card_body(
@@ -57,6 +59,7 @@ filters <- card(
   )
 )
 
+# Card for demographics summary table
 dm_summary_table <- card(
   full_screen = TRUE,
   card_body(
@@ -95,6 +98,7 @@ dm_plot_cards <- card(
 # ----------------------------- HELPER FUNCTIONS ----------------------------- #
 # ---------------------------------------------------------------------------- #
 
+# Creates a dataframe formatted for gt table with each treatment arm as a column
 dm_table_form <- function(df, category){
   df <- df %>% 
     group_by(ARM)
@@ -102,18 +106,26 @@ dm_table_form <- function(df, category){
   if(category == "RACE") {df <- count(df, RACE)}
   else {df <- count(df, SEX)}
   
+  # Calculate percentages
   df <- df %>% 
     mutate(Total = paste0(n, " (", scales::percent(prop.table(n)), ")")) 
   df$n <- NULL
+  
+  # Spread ARM to be in the format for gt table
   df <- df %>% spread(ARM, Total) %>% 
+    # Reformat row names 
     cbind(Category = paste0(category, ", n (%)"))
+  
   colnames(df)[which(names(df) == category)] <- "Variables"
   
   return (df)
 }
 
 
+# Creates a dataframe formatted for gt table with statistics of the 
+# overall dm dataframe 
 dm_total_table_form <- function(df, category){
+  # Calculate percentages
   df <- df %>% 
     mutate(Total = paste0(n, " (", scales::percent(prop.table(n)), ")")) 
   colnames(df)[which(names(df) == category)] <- "Variables"
@@ -127,6 +139,8 @@ dm_age_table_form <- function(df, category = ""){
   if (category == "") {
     df <- df %>% group_by(ARM)
   }
+  
+  # Calculate statistics
   df <- df %>% 
     summarise(
       mean_sd = paste0(round(mean(AGE, na.rm = TRUE), 1), " (", 
@@ -138,6 +152,7 @@ dm_age_table_form <- function(df, category = ""){
   colnames(df)[which(names(df) == "median")] <- "Median"
   colnames(df)[which(names(df) == "range")] <- "Range"
   
+  # Reformat dataframe for gt table
   if (category == "total"){
     df$ARM <- c("Total")
     df <- df[,c(4,1,2,3)]
@@ -146,6 +161,7 @@ dm_age_table_form <- function(df, category = ""){
       pivot_longer(cols = -1, names_to = "Variables", values_to = "Total")
     df$ARM <- NULL
   }
+  
   else{
     df <- df %>%
       pivot_longer(cols = -1, names_to = "Variables", values_to = "val")
@@ -154,6 +170,7 @@ dm_age_table_form <- function(df, category = ""){
       spread(ARM, val) %>%
       cbind(Category = "Age")
   }
+  
   return (df)
 }
 
@@ -164,6 +181,8 @@ dm_age_table_form <- function(df, category = ""){
 # ---------------------------------- SERVER ---------------------------------- #
 # ---------------------------------------------------------------------------- #
 mod_dm_server <- function(input, output, dm_r) {
+  
+  # Only get rows with RFSTDTC within the range specified by select_date
   dm <- reactive({
     dm_r()[as.Date(dm_r()$RFSTDTC) %inrange%
              as.Date(input$date_select),,drop=FALSE]
@@ -181,6 +200,7 @@ mod_dm_server <- function(input, output, dm_r) {
         filter(SITEID == input$site_select)
     }
     
+    # If there is no data based on filters, return an empty plot
     if(nrow(age_df) == 0){
       empty_plot <- ggplot() +
         labs(
@@ -212,9 +232,12 @@ mod_dm_server <- function(input, output, dm_r) {
   # ------------ Race Bar Chart ------------ #
   output$race_plot <- renderPlotly({
     
+    # Wrap values in RACE columns  
     wrap_label <- dm() %>% 
       mutate(RACE = str_wrap(RACE, width = 17))
     
+    # Set a color for each race so the color for each race doesn't change if a 
+    # race value is filtered out of the dataframe
     palette1_named <- setNames(
       object = scales::hue_pal()(length(unique(wrap_label$RACE))),
       nm = unique(wrap_label$RACE))
@@ -229,6 +252,8 @@ mod_dm_server <- function(input, output, dm_r) {
         group_by(ARM, RACE) %>% 
         count(RACE)
     }
+    
+    # Make values in RACE columns also in wrapped form
     race_df <- race_df %>% 
       mutate(RACE = str_wrap(RACE, width = 17))
     
@@ -307,7 +332,7 @@ mod_dm_server <- function(input, output, dm_r) {
     ggplot(country_df, aes(
       area = n,
       fill = COUNTRY,
-      label = paste0("SiteID: ",SITEID,"\nNumber of Subjects: ", n),
+      label = paste0("SiteID: ", SITEID, "\nNumber of Subjects: ", n),
       subgroup = COUNTRY)) +
       geom_treemap() +
       geom_treemap_text(
@@ -325,16 +350,18 @@ mod_dm_server <- function(input, output, dm_r) {
   
   output$summary_table <- render_gt({
     
+    # Create dataframes with total statistics for race, sex, and age
     race_total_df <- dm_total_table_form(count(dm(), RACE), "RACE")
     sex_total_df <- dm_total_table_form(count(dm(), SEX), "SEX")
+    age_total_df <- dm_age_table_form(dm(), category = "total")
     
+    # Create dataframes with statistics for race, sex, and age by treatment arms
     race_df <- dm_table_form(dm(), "RACE")
     race_df[is.na(race_df)] = "0 (0%)"
     sex_df <- dm_table_form(dm(), "SEX")
-    
-    age_total_df <- dm_age_table_form(dm(), category = "total")
     age_df <- dm_age_table_form(dm())
     
+    # Combine dataframes together
     combined_total_df <- rbind(race_total_df, sex_total_df)
     combined_total_df <- rbind(combined_total_df, age_total_df)
     
@@ -343,22 +370,31 @@ mod_dm_server <- function(input, output, dm_r) {
     
     combined_df <- merge(combined_group_df, combined_total_df, by = "Variables")
     
+    # Calculate how many subjects are in each arm
     arm_total <- dm() %>% 
       count(ARM) 
     
+    # Calculate how many subjects there are in total
     total <- data.frame("Total", nrow(dm()))
     names(total) <- c("ARM", "n")
     
+    # Combine dataframes together
     arm_total <- rbind(arm_total, total)
+    
+    # Find names of treatment arms along with the total column
     col_names <- names(combined_df[, !names(combined_df) %in% 
                                      c("Variables", "Category")] )
+    
+    # Make the positions of the arm columns the same as in the combined_df
     arm_total <- arm_total[match(col_names, arm_total$ARM),]
     
+    # Attach N = # to arms and total columns
     for (name in col_names){
       colnames(combined_df)[which(names(combined_df) == name)] <- paste0(
         name, " (N = ", arm_total[arm_total$ARM == name, "n"], ")")
     }
     
+    # Make summary table
     gt_tbl <-
       combined_df |>
       group_by(Category) |>
@@ -373,7 +409,9 @@ mod_dm_server <- function(input, output, dm_r) {
       ) |>
       cols_hide(
         columns = Category
-      )
+      )|>
+      opt_vertical_padding(scale = 1) |>
+      opt_horizontal_padding(scale = 3)
     
   })
   
