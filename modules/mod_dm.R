@@ -202,7 +202,7 @@ mod_dm_server <- function(input, output, dm_r) {
         fill = "Sex") +
       theme(
         legend.text = element_text(size = 7),
-        axis.text.x = element_text(angle = -45)
+        axis.text.x = element_text(angle = 45)
       )
     return(ggplotly(age_by_arm_plot, tooltip = "text") %>%
              layout(boxmode = "group"))
@@ -247,7 +247,7 @@ mod_dm_server <- function(input, output, dm_r) {
         values = palette1_named) +
       theme(
         legend.text = element_text(size = 7),
-        axis.text.x = element_text(angle = -45)
+        axis.text.x = element_text(angle = 45)
       )
     return(ggplotly(race_by_arm_plot, tooltip = "text"))
     
@@ -282,7 +282,7 @@ mod_dm_server <- function(input, output, dm_r) {
         fill = "Sex") +
       theme(
         legend.text = element_text(size = 7),
-        axis.text.x = element_text(angle = -45)
+        axis.text.x = element_text(angle = 45)
       )
     return(ggplotly(sex_by_arm_plot, tooltip = "text"))
     
