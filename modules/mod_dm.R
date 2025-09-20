@@ -13,9 +13,10 @@ library(pharmaversesdtm)
 
 data(package = "pharmaversesdtm")
 
+# --- Import data.R --- #
+#source("data.R")
 
 # --- Load in dm data --- #
-#source("data.R")
 #dm <- get_dm()
 
 # ---------------------------------------------------------------------------- #
