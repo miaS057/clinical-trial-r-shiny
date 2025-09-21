@@ -9,18 +9,16 @@ library(lubridate)
 library(data.table)
 library(gt)
 library(reshape2)
-library(pharmaversesdtm)
 
-data(package = "pharmaversesdtm")
 
 # --- Import data.R --- #
-#source("data.R")
+source("data.R")
 
 # --- Load dm data --- #
-#dm <- get_dm()
+dm <- get_dm()
 
 # --- Load ae data --- #
-#ae <- get_ae()
+ae <- get_ae()
 
 # ---------------------------------------------------------------------------- #
 # ------------------------------------ UI ------------------------------------ #
@@ -535,7 +533,10 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       theme_minimal() +
       theme(
         aspect.ratio = 0.4, 
-        axis.text = element_text(size = 7), 
+        axis.text = element_text(size = 7),
+        axis.title.y = element_text(size = 15), 
+        axis.title.x = element_text(size = 16),
+        plot.title = element_text(size = 20),
         legend.position="none") +
       geom_point(aes(
         x = RFSTDTC)) +
