@@ -243,6 +243,10 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     arm_1 <- input$arm_select[1]
     arm_2 <- input$arm_select[2]
     
+    butterfly_palette <- setNames(
+      object = scales::hue_pal()(length(unique(filtered_ae_dm()$AESEV))),
+      nm = unique(filtered_ae_dm()$AESEV))
+    
     arms_df <- filtered_ae_dm() %>% 
       filter(AEDECOD %in% input$aedecod_select) %>% 
       group_by(AEDECOD, ACTARM, AESEV) %>% 
@@ -292,6 +296,9 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
         xintercept = 0, 
         color = "white", 
         linewidth = 0.5) +
+      scale_fill_manual(
+        values = butterfly_palette
+      ) +
       labs(
         title = paste0("Count of adverse effects by AEDECOD and severity for\n", 
                        arm_1, " (left) and ", arm_2, " (right)"),
@@ -593,8 +600,8 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       tab_stubhead(label = "AEDECOD") |>
       tab_header(
         title = "AEDECOD Summary Table",
-        subtitle = paste0("Subject ", ae_usubjid, " in the ", ae_actarm,
-                          " treatment ---", "RFSTDTC: ", 
+        subtitle = paste0("Subject ", ae_usubjid, " in ", ae_actarm,
+                          " treatment ARM ---", " RFSTDTC: ", 
                           ae_rfstdtc, " RFENDTC: ", ae_rfendtc)
       ) |>
       tab_stub_indent(
