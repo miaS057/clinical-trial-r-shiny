@@ -125,11 +125,17 @@ ae_plot_cards <- navset_card_tab(
       card_body(
         padding = c(30, 0, 0, 0), 
         subj_select),
+      layout_column_wrap(
+        width = 1/2,
         card_body(
-          plotOutput(outputId = "subj_ae_timeline_plot"),
-          gt_output("subj_summary_table")
-          )
-        )
+          plotOutput(outputId = "subj_ae_timeline_plot")
+        ),
+        card_body(
+          padding = c(50, 0, 0, 0),
+          gt_output("subj_summary_table"))
+      )
+        
+    )
   )
 )
 
@@ -569,10 +575,14 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     # Filter dataframe based on filter selection
     table_timeline_df <- ae_dm_df() %>% filter(USUBJID == input$subj_select)
     
+    ae_usubjid <- table_timeline_df$USUBJID[1]
+    ae_actarm <- table_timeline_df$ACTARM[1]
+    ae_rfstdtc <- table_timeline_df$RFSTDTC[1]
+    ae_rfendtc <- table_timeline_df$RFENDTC[1]
+    
     # Get only necessary columns 
     table_timeline_df <- table_timeline_df[c("USUBJID", "ACTARM", "AEDECOD", 
-                                             "RFSTDTC", "RFENDTC", "AESTDTC", 
-                                             "AEENDTC")]
+                                             "AESTDTC", "AEENDTC")]
     
     subj_gt_tbl <-
       table_timeline_df |>
@@ -582,7 +592,10 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       subj_gt_tbl |>
       tab_stubhead(label = "AEDECOD") |>
       tab_header(
-        title = "Selected AEBODSYS Summary Table"
+        title = "AEDECOD Summary Table",
+        subtitle = paste0("Subject ", ae_usubjid, " in the ", ae_actarm,
+                          " treatment ---", "RFSTDTC: ", 
+                          ae_rfstdtc, " RFENDTC: ", ae_rfendtc)
       ) |>
       tab_stub_indent(
         rows = everything(),
@@ -595,7 +608,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       cols_hide(
         columns = c("USUBJID", "ACTARM")
       ) |>
-      opt_vertical_padding(scale = 3) |>
+      opt_vertical_padding(scale = 1.5) |>
       opt_horizontal_padding(scale = 3)
   })
   
