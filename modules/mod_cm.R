@@ -183,14 +183,25 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       )
   })
   
+  # Helper function that will help be more lenient on different date time formats
+  parse_date_any <- function(x) {
+    s <- suppressWarnings
+    d <- s(lubridate::ymd_hms(x, quiet = TRUE))
+    d <- dplyr::coalesce(d, s(lubridate::ymd(x, quiet = TRUE)))
+    as.Date(d)
+  }
+  
   # ===================================================
   # ======== DONUT CHART WITH FILTER BACK-END =========
   # ===================================================
   # Keep only CM rows with CM start >= RFSTDTC
   cm_valid <- reactive({
     df <- cm_by_arm()
-    df$CMSTDTC_parsed <- suppressWarnings(lubridate::ymd(df$CMSTDTC))
-    df$RFSTDTC_parsed <- suppressWarnings(lubridate::ymd(df$RFSTDTC))
+    
+    # Use safe parsing with helper function
+    df$CMSTDTC_parsed <- parse_date_any(df$CMSTDTC)
+    df$RFSTDTC_parsed <- parse_date_any(df$RFSTDTC)
+    
     df %>%
       dplyr::filter(
         !is.na(CMSTDTC_parsed), !is.na(RFSTDTC_parsed),
@@ -381,22 +392,52 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
     
     if (nrow(df) == 0L) return(df[0, ])
     
-    # data parsing
-    df$CMSTDTC_parsed <- suppressWarnings(lubridate::ymd(df$CMSTDTC))
-    df$CMENDTC_parsed <- suppressWarnings(lubridate::ymd(df$CMENDTC))
+    # This will be more lenient with the whitespaces and caps of a CM
+    df <- df %>%
+      dplyr::mutate(
+        CMTRT = stringr::str_squish(CMTRT)
+      )
+    
+    # data parsing (safely with helper)
+    df$CMSTDTC_parsed <- parse_date_any(df$CMSTDTC)
+    df$CMENDTC_parsed <- parse_date_any(df$CMENDTC)
     
     # visible start/end
     df$start_date <- as.Date(df$CMSTDTC_parsed)
-    df$end_date <- as.Date(dplyr::coalesce(df$CMENDTC_parsed, df$CMSTDTC_parsed))
+    df$end_date <- as.Date(df$CMENDTC_parsed)
     
-    # fix clear data errors and make single-day visible
-    df$end_date <- ifelse(is.na(df$end_date) | df$end_date < df$start_date,
-                          df$start_date, df$end_date)
-    df$end_date <- as.Date(df$end_date)
+    # Checks that the end_date is right and solves edge cases
+    df$end_date <- dplyr::if_else(
+      !is.na(df$end_date) & !is.na(df$start_date) & df$end_date < df$start_date,
+      df$start_date,
+      df$end_date
+    )
     
-    df$end_vis <- pmax(df$end_date, df$start_date + lubridate::days(1))
-    
+    # Visible bar end:
+    # For rows with an end date, ensure at least one-day width.
+    # If end is missing, keep NA here so your plotting code can detect
+    # “start-only” and extend to the plot edge.
+    df$end_vis <- dplyr::if_else(
+      !is.na(df$end_date),
+      pmax(df$end_date, df$start_date + lubridate::days(1)),
+      as.Date(NA)
+    )
     df
+  })
+  
+  # So create the levels (how we are organizing the timeline and the table) here
+  # This way we can input it into both the timeline and the table for same ordering
+  cm_levels <- reactive({
+    cs <- cm_subject()
+    if (nrow(cs) == 0L) return(character(0))
+    
+    # Use the same rule the timeline uses
+    cs %>%
+      dplyr::filter(!is.na(start_date)) %>%
+      dplyr::arrange(start_date, end_vis, CMTRT) %>%
+      dplyr::pull(CMTRT) %>%
+      unique() %>%
+      rev()
   })
   
   # Creates a message for when a subject is not selected
@@ -414,9 +455,10 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
   
   # Plot the timeline
   output$cm_timeline <- renderPlot({
+    # Our variables for the subject
     si <- subject_info()
     cs <- cm_subject()
-    
+
     # If not found show error
     if (nrow(si) == 0L) {
       return(ggplot2::ggplot() + ggplot2::labs(title = "No subject info found") +
@@ -434,12 +476,8 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
     }
     
     # Order CM rows for y
-    levels_y <- cs |>
-      dplyr::arrange(start_date, end_vis, CMTRT) |>
-      dplyr::pull(CMTRT) |>
-      unique() |>
-      rev()
-    cs$CMTRT_f <- factor(cs$CMTRT, levels = levels_y)
+    levels_y <- cm_levels()
+    cs$CMTRT_f <- factor(cs$CMTRT, levels = cm_levels())
     
     # Create equal month spacing but allow day plotting
     month_slot <- function(d) 12L * lubridate::year(d) + (lubridate::month(d) - 1L)
@@ -521,7 +559,7 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
         expand = ggplot2::expansion(add = c(0.05, 0.05))
       ) +
       # This removes undated CM labels
-      ggplot2::scale_y_discrete(drop = TRUE) + 
+      ggplot2::scale_y_discrete(drop = TRUE, na.translate = FALSE) + 
       # Makes sure dates dont overlap
       ggplot2::guides(x = ggplot2::guide_axis(check.overlap = TRUE)) +
       # title label for the timeline
@@ -559,11 +597,14 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
   # Also added sort flag so itll be pushed to the bottom with no dates
   # Flag rows with valid dates
   cs <- cs %>%
-    dplyr::mutate(has_dates = !is.na(start_date) & !is.na(end_date))
+    dplyr::mutate(
+      has_start = !is.na(start_date),
+      has_end = !is.na(end_date)
+      )
   
   # distinct intervals for rows that DO have both dates
-  with_dates <- cs %>%
-    dplyr::filter(has_dates) %>%
+  both_dates <- cs %>%
+    dplyr::filter(has_start & has_end) %>%
     dplyr::distinct(CMTRT, start_date, end_date, .keep_all = FALSE) %>%
     dplyr::mutate(
       CM = as.character(CMTRT),
@@ -571,34 +612,41 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       start_ord = as.Date(start_date),
       # Displayed dates (you can chagne the format here)
       `Start Date` = format(as.Date(start_date), "%Y-%m-%d"),
-      `End Date` = dplyr::if_else(is.na(end_date), "Ongoing",
-                                  format(as.Date(end_date), "%Y-%m-%d")),
+      `End Date` = format(as.Date(end_date), "%Y-%m-%d"),
       sort_flag = 0L
     ) %>%
     dplyr::select(CM, `Start Date`, `End Date`, start_ord, sort_flag)
-  
-  # B) for CMs with NO valid-dated rows at all, include exactly one row with blanks
-  no_date_once <- cs %>%
-    dplyr::group_by(CMTRT) %>%
-    dplyr::summarise(any_dates = any(has_dates), .groups = "drop") %>%
-    dplyr::filter(!any_dates) %>%                 # only CMs with zero valid-dated rows
-    dplyr::transmute(
+  start_only <- cs %>%
+    dplyr::filter(has_start & !has_end) %>%
+    dplyr::distinct(CMTRT, start_date, end_date, .keep_all = FALSE) %>%
+    dplyr::mutate(
       CM = as.character(CMTRT),
       # For sorting
-      start_ord = as.Date("0001-01-01"),
+      start_ord = as.Date(start_date),
+      `Start Date` = format(as.Date(start_date), "%Y-%m-%d"),
+      `End Date` = "Ongoing",
+      sort_flag = 0L
+    ) %>%
+    dplyr::select(CM, `Start Date`, `End Date`, start_ord, sort_flag)
+  # C) for CMs with NO valid-dated (no start date) rows at all, include exactly one row with blanks
+  no_dates <- cs %>%
+    dplyr::filter(!has_start & !has_end) %>%
+    dplyr::distinct(CMTRT) %>%
+    dplyr::transmute(
+      CM         = as.character(CMTRT),
+      start_ord  = as.Date("0001-01-01"),
       `Start Date` = "",
-      `End Date` = "",
-      sort_flag = 1L
+      `End Date`   = "",
+      sort_flag  = 1L
     )
-  
+
   # Combine and order by dates
-  dplyr::bind_rows(with_dates, no_date_once) %>%
-    dplyr::arrange(sort_flag, dplyr::desc(start_ord), CM) %>% 
+  dplyr::bind_rows(both_dates, start_only, no_dates) %>%
     dplyr::select(CM, `Start Date`, `End Date`)
   })
 
   
-  # same HTML style as the donut chart
+  # Output the table
   output$cm_timeline_table <- renderUI({
     df <- cm_table_data()
     # Edge case no data
@@ -606,6 +654,20 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       return(tags$div(style = "padding:10px;", "No ConMed recorded for this subject."))
     }
     
+    # So add that same levels from the timeline to the table
+    lv <- cm_levels() 
+    # Add a guard if there is not start dates at all
+    
+    if (length(lv) == 0L) {
+      # (edge case)
+      df <- df %>% dplyr::arrange(CM, `Start Date`, `End Date`)
+    } else {
+      # This will sort the data to match CM but reverse to account for mirroring
+      df <- df %>%
+        dplyr::mutate(.ord = match(CM, rev(lv)), .ord = dplyr::if_else(is.na(.ord), Inf, .ord)) %>%
+        dplyr::arrange(.ord, `Start Date`) %>%
+        dplyr::select(-.ord)
+    }
     # header
     head_row <- tags$tr(
       lapply(names(df), tags$th
