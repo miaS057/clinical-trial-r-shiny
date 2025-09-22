@@ -601,6 +601,4 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       tags$tbody(body_rows)
     )
   })
-  
-
 }
