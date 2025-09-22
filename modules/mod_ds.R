@@ -11,7 +11,7 @@ mod_ds_ui <- function() {
       }
       @media (min-width: 1100px) {
         .ds-grid {
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: 1fr;
         }
       }
       .ds-card {
