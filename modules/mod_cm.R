@@ -461,28 +461,49 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       sprintf("%04.0f-%02.0f", y, m)
     }
     
+    
     # x positions for bars and trial lines
-    cs$x_start <- x_pos(cs$start_date)
-    cs$x_end   <- x_pos(cs$end_vis)
+    # For the cs polts rows w no start date will stay NA and have no bar drawn
+    cs$x_start <- ifelse(!is.na(cs$start_date), x_pos(cs$start_date), NA_real_)
+    cs$x_end   <- ifelse(!is.na(cs$end_date),   x_pos(cs$end_vis),   NA_real_)
     rfstd_x <- if (!is.na(rfstd)) x_pos(rfstd) else NA_real_
     rfend_x <- if (!is.na(rfend)) x_pos(rfend) else NA_real_
     
-    # Ensure single-day bars are visible
-    cs$x_end_vis <- ifelse(cs$x_end <= cs$x_start, cs$x_start + 0.02, cs$x_end)
+    # Limits from rows that actually have x's (plus ref lines)
+    finite_x <- is.finite(cs$x_start) | is.finite(cs$x_end)
+    any_data <- any(finite_x) || is.finite(rfstd_x) || is.finite(rfend_x)
     
-    # Limits pades 0.1 to make sure that plots are shown
-    x_min <- min(cs$x_start, na.rm = TRUE)
-    x_max <- max(cs$x_end_vis, rfstd_x, rfend_x, na.rm = TRUE)
-    lims  <- c(floor(x_min) - 0.5, ceiling(x_max) + 0.5)
+    # Limits pads 0.1 to make sure that plots are shown
+    x_min <- min(cs$x_start[is.finite(cs$x_start)], na.rm = TRUE)
+    x_max_base <- suppressWarnings(max(
+      cs$x_end[is.finite(cs$x_end)],
+      rfstd_x, rfend_x, na.rm = TRUE
+    ))
     
+    lims <- c(floor(x_min) - 0.5, ceiling(x_max_base) + 0.5)
+    
+    # Extend start-only bars to the right edge; leave no-start rows as NA
+    plot_right <- lims[2] - 0.05
+    cs$x_end_final <- dplyr::case_when(
+      is.finite(cs$x_start) & !is.finite(cs$x_end) ~ plot_right,  # start-only → extend
+      TRUE                                         ~ cs$x_end      # normal / no-start stays as is (NA)
+    )
+    
+    # ensure a visible sliver for single-day
+    cs$x_end_final <- ifelse(
+      is.finite(cs$x_start) & (!is.finite(cs$x_end_final) | cs$x_end_final <= cs$x_start),
+      cs$x_start + 0.02,
+      cs$x_end_final
+    )
+  
     # Integer month ticks only (prevents duplicate labels)
     base_breaks <- seq(from = floor(lims[1]), to = ceiling(lims[2]), by = 1L)
     
     # Ggplot for the timeline
     g <- ggplot2::ggplot(cs) +
       ggplot2::geom_segment(
-        ggplot2::aes(x = x_start, xend = x_end_vis, y = CMTRT_f, yend = CMTRT_f),
-        linewidth = 4, lineend = "round", colour = "#2c3e50"
+        ggplot2::aes(x = x_start, xend = x_end_final, y = CMTRT_f, yend = CMTRT_f),
+        linewidth = 4, lineend = "round", colour = "#2c3e50", na.rm = TRUE
       ) +
       # Creates the start/end treatment reference lines
       (if (!is.na(rfstd_x))
@@ -499,6 +520,8 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
         labels = label_ym,
         expand = ggplot2::expansion(add = c(0.05, 0.05))
       ) +
+      # This removes undated CM labels
+      ggplot2::scale_y_discrete(drop = TRUE) + 
       # Makes sure dates dont overlap
       ggplot2::guides(x = ggplot2::guide_axis(check.overlap = TRUE)) +
       # title label for the timeline
@@ -548,7 +571,8 @@ mod_cm_server <- function(dm_r, cm_r, output, input, session) {
       start_ord = as.Date(start_date),
       # Displayed dates (you can chagne the format here)
       `Start Date` = format(as.Date(start_date), "%Y-%m-%d"),
-      `End Date` = format(as.Date(end_date),   "%Y-%m-%d"),
+      `End Date` = dplyr::if_else(is.na(end_date), "Ongoing",
+                                  format(as.Date(end_date), "%Y-%m-%d")),
       sort_flag = 0L
     ) %>%
     dplyr::select(CM, `Start Date`, `End Date`, start_ord, sort_flag)
