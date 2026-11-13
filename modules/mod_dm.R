@@ -9,16 +9,6 @@ library(lubridate)
 library(data.table)
 library(treemapify)
 library(gt)
-library(pharmaversesdtm)
-
-data(package = "pharmaversesdtm")
-
-# --- Import data.R --- #
-#source("data.R")
-
-# --- Load in dm data --- #
-#dm <- get_dm()
-
 # ---------------------------------------------------------------------------- #
 # ------------------------------------ UI ------------------------------------ #
 # ---------------------------------------------------------------------------- #
@@ -28,23 +18,21 @@ mod_dm_ui <- function() {
   dm_plot_cards
 }
 
-# Get min and max date for select_date
-min_date <- as.Date(min(dm$RFSTDTC, na.rm=TRUE))
-max_date <- as.Date(max(dm$RFSTDTC, na.rm=TRUE))
+demo_reference_dates <- range(cm_full_date(get_dm()$RFSTDTC), na.rm = TRUE)
 
 select_site <- radioButtons(
   inputId = "site_select",
   label = "Selected site to display",
-  choices = c("All sites combined", unique(dm$SITEID)),
+  choices = c("All sites combined", unique(get_dm()$SITEID)),
   selected = "All sites combined",
   inline = TRUE)
 
 select_date <- sliderInput(
   inputId = "date_select",
   label = "Selected date range based on trial start date",
-  min = min_date,
-  max = max_date,
-  value = c(min_date, max_date),
+  min = demo_reference_dates[1],
+  max = demo_reference_dates[2],
+  value = demo_reference_dates,
   timeFormat = "%Y-%m-%d")
 
 # Card for filter selections
@@ -181,12 +169,27 @@ dm_age_table_form <- function(df, category = ""){
 # ---------------------------------------------------------------------------- #
 # ---------------------------------- SERVER ---------------------------------- #
 # ---------------------------------------------------------------------------- #
-mod_dm_server <- function(input, output, dm_r) {
+mod_dm_server <- function(input, output, dm_r, session) {
+  reference_dates <- reactive(cm_full_date(dm_r()$RFSTDTC))
+  observe({
+    sites <- sort(unique(stats::na.omit(dm_r()$SITEID)))
+    updateRadioButtons(session, "site_select", choices = c("All sites combined", sites),
+                       selected = "All sites combined")
+    dates <- reference_dates()
+    limits <- if (all(is.na(dates))) demo_reference_dates else range(dates, na.rm = TRUE)
+    updateSliderInput(session, "date_select", min = limits[1],
+                      max = max(limits[2], limits[1] + 1), value = limits)
+  })
+
   
   # Only get rows with RFSTDTC within the range specified by select_date
   dm <- reactive({
-    dm_r()[as.Date(dm_r()$RFSTDTC) %inrange%
-             as.Date(input$date_select),,drop=FALSE]
+    dates <- reference_dates()
+    if (all(is.na(dates))) return(dm_r())
+    req(input$date_select)
+    selected <- dm_r()[dates %inrange% as.Date(input$date_select), , drop = FALSE]
+    validate(need(nrow(selected) > 0, "No subjects in this date range."))
+    selected
   })
   
   

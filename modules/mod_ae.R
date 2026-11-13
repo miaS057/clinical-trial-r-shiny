@@ -11,15 +11,6 @@ library(gt)
 library(reshape2)
 
 
-# --- Import data.R --- #
-source("data.R")
-
-# --- Load dm data --- #
-dm <- get_dm()
-
-# --- Load ae data --- #
-ae <- get_ae()
-
 # ---------------------------------------------------------------------------- #
 # ------------------------------------ UI ------------------------------------ #
 # ---------------------------------------------------------------------------- #
@@ -28,59 +19,45 @@ mod_ae_ui <- function() {
   ae_plot_cards
 }
 
-# Join ae and dm 
-# Filter out subjects that failed screening and have an 
-# adverse effect relatedness of NA
-join_ae_dm_df <- left_join(ae, dm, by = "USUBJID")
-filtered_ae_dm_df <- join_ae_dm_df %>% 
-  filter(ACTARM != "Screen Failure" &
-          AEREL != "NA")
-
 arm_select <- selectizeInput(
   inputId = "arm_select",
   label = "Selected treatment (Max 2 selections)",
-  choices = unique(filtered_ae_dm_df$ACTARM),
-  selected = unique(filtered_ae_dm_df$ACTARM)[1:2],
+  choices = NULL,
   multiple = TRUE,
   options = list(maxItems = 2, dropdownParent = 'body'))
 
 sev_select <- selectizeInput(
   inputId = "sev_select",
   label = "Selected AE severity",
-  choices = unique(ae$AESEV),
-  selected = unique(filtered_ae_dm_df$AESEV),
+  choices = NULL,
   multiple = TRUE,
   options = list(dropdownParent = 'body'))
 
 rel_select <- selectizeInput(
   inputId = "rel_select",
   label = "Selected relatedness",
-  choices = unique(filtered_ae_dm_df$AEREL),
-  selected = filtered_ae_dm_df$AEREL[filtered_ae_dm_df$AEREL != "NONE"],
+  choices = NULL,
   multiple = TRUE,
   options = list(dropdownParent = 'body'))
 
 aedecod_select <- selectizeInput(
   inputId = "aedecod_select",
   label = "Selected AEDECOD",
-  choices = sort(unique(filtered_ae_dm_df$AEDECOD)),
-  selected = sort(unique(filtered_ae_dm_df$AEDECOD))[1:3],
+  choices = NULL,
   multiple = TRUE,
   options = list(dropdownParent = 'body'))
 
 bodsys_select <- selectizeInput(
   inputId = "aebodsys_select",
   label = "Selected AEBODSYS",
-  choices = sort(unique(filtered_ae_dm_df$AEBODSYS)),
-  selected = sort(unique(filtered_ae_dm_df$AEBODSYS))[1:3],
+  choices = NULL,
   multiple = TRUE,
   options = list(dropdownParent = 'body'))
 
 subj_select <- selectizeInput(
   inputId = "subj_select",
   label = "Selected USUBJID",
-  choices = unique(filtered_ae_dm_df$USUBJID),
-  selected = unique(filtered_ae_dm_df$USUBJID)[1],
+  choices = NULL,
   options = list(dropdownParent = 'body'))
 
 
@@ -208,7 +185,7 @@ attach_n <- function(df, category, total_count, arm_count){
 
 # Changes date into type Date
 to_date <- function(date){
-  return (as.Date(date))
+  return (cm_full_date(date))
 } 
 
 
@@ -216,14 +193,32 @@ to_date <- function(date){
 # ---------------------------------------------------------------------------- #
 # ---------------------------------- SERVER ---------------------------------- #
 # ---------------------------------------------------------------------------- #
-mod_ae_server <- function(input, output, dm_r, ae_r) {
+mod_ae_server <- function(input, output, dm_r, ae_r, session) {
   dm <- reactive({dm_r() %>% 
-      filter(ACTARM != "Screen Failure")})
+      filter(!is.na(ACTARM), ACTARM != "Screen Failure")})
   ae <- reactive({ae_r() %>% 
-      filter(AEREL != "NA")})
+      filter(!is.na(AEREL), AEREL != "NA")})
   
-  ae_dm_df <- reactive({left_join(ae(), dm(), by = "USUBJID")})
+  ae_dm_df <- reactive({inner_join(ae(), dm(), by = c("STUDYID", "USUBJID"))})
   
+  observe({
+    data <- ae_dm_df()
+    update_filter <- function(id, values, limit = Inf) {
+      choices <- unique(stats::na.omit(values))
+      updateSelectizeInput(session, id, choices = choices,
+                           selected = head(choices, min(length(choices), limit)))
+    }
+    update_filter("arm_select", data$ACTARM, 2)
+    update_filter("sev_select", data$AESEV)
+    relatedness <- unique(stats::na.omit(data$AEREL))
+    selected <- setdiff(relatedness, "NONE")
+    updateSelectizeInput(session, "rel_select", choices = relatedness,
+                         selected = if (length(selected)) selected else relatedness)
+    update_filter("aedecod_select", sort(data$AEDECOD), 3)
+    update_filter("aebodsys_select", sort(data$AEBODSYS), 3)
+    update_filter("subj_select", data$USUBJID, 1)
+  })
+
   # Get only relevant adverse events based on filters
   filtered_ae_dm_df <- reactive({
     ae_dm_df() %>% 
@@ -240,18 +235,20 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
   # ------------ AEDECOD Butterfly Plot ------------ #
   output$aedecod_butterfly_plot <- renderPlotly({
     
+    validate(need(length(input$arm_select), "Select a treatment arm."))
     arm_1 <- input$arm_select[1]
     arm_2 <- input$arm_select[2]
-    
-    butterfly_palette <- setNames(
-      object = scales::hue_pal()(length(unique(filtered_ae_dm()$AESEV))),
-      nm = unique(filtered_ae_dm()$AESEV))
     
     arms_df <- filtered_ae_dm() %>% 
       filter(AEDECOD %in% input$aedecod_select) %>% 
       group_by(AEDECOD, ACTARM, AESEV) %>% 
       count(AEDECOD) 
     
+    validate(need(nrow(arms_df), "No adverse events match these filters."))
+    butterfly_palette <- setNames(
+      object = scales::hue_pal()(length(unique(arms_df$AESEV))),
+      nm = unique(arms_df$AESEV))
+
     # Format n values to create a pyramid
     arms_pyramid <- arms_df %>%
       mutate(
@@ -301,7 +298,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       ) +
       labs(
         title = paste0("Count of adverse effects by AEDECOD and severity for\n", 
-                       arm_1, " (left) and ", arm_2, " (right)"),
+                       arm_1, " (left)", if (!is.na(arm_2)) paste0(" and ", arm_2, " (right)")),
         x = "Count"
       ) + 
       theme(
@@ -326,6 +323,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     decod_filtered_df <- filtered_ae_dm() %>% 
       filter(AEDECOD %in% input$aedecod_select)
     
+    validate(need(nrow(decod_filtered_df), "No adverse events match these filters."))
     # Create dataframes for AEDECOD based on filter selections
     aedecod_table_df <- ae_table_form(decod_filtered_df, 
                                       "AEDECOD", total_rows, arm_rows)
@@ -396,6 +394,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     bodsys_filtered_df <- filtered_ae_dm() %>% 
       filter(AEBODSYS %in% input$aebodsys_select)   
     
+    validate(need(nrow(bodsys_filtered_df), "No adverse events match these filters."))
     # Create dataframes for AEBODSYS based on filter selections
     aebodsys_table_df <- ae_table_form(bodsys_filtered_df, 
                                        "AEBODSYS", total_rows, arm_rows)
@@ -459,6 +458,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     # Filter dataframe to only contain necessary information
     subj_df <- ae_dm_df() %>% 
       filter(USUBJID == input$subj_select)
+    validate(need(nrow(subj_df), "Select a subject with adverse events."))
     timeline_df <- subj_df[c("USUBJID", "ACTARM", "AEDECOD", "RFSTDTC", 
                              "RFENDTC", "AESTDTC", "AEENDTC")]
     
@@ -468,7 +468,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     
     # Filter out rows that have proper date format
     timeline_df <- timeline_df %>% 
-      filter(nchar(AESTDTC) == 10)
+      filter(!is.na(cm_full_date(AESTDTC)))
     
     # If timeline_df has no data, create a plot that only has a point for 
     # RFSTDTC and RFENDTC
@@ -479,8 +479,10 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
                                                      "RFENDTC")], to_date) )
       melted_df <- melt(timeline_df, measure.vars = c("RFSTDTC", "RFENDTC"))
       
-      min_date <- ymd(min(timeline_df$RFSTDTC)) - months(1)
-      max_date <- ymd(min(timeline_df$RFENDTC)) + months(1)
+      dates <- c(timeline_df$RFSTDTC, timeline_df$RFENDTC)
+      validate(need(any(!is.na(dates)), "No complete dates to plot."))
+      min_date <- min(dates, na.rm = TRUE) - 30
+      max_date <- max(dates, na.rm = TRUE) + 30
       
       timeline_plot <- ggplot(melted_df, aes(
         x = value, 
@@ -502,19 +504,17 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
       return(timeline_plot)
     }
     
-    # Get min and max date from the timeline_df
-    min_date <- ymd(min(c(min(timeline_df$RFSTDTC), 
-                          min(timeline_df$AESTDTC)))) - months(1)
-    max_date <- ymd(max(c(max(timeline_df$RFENDTC), 
-                          max(timeline_df$AEENDTC)))) + months(1)
-    
+    dates <- cm_full_date(unlist(timeline_df[c("RFSTDTC", "RFENDTC", "AESTDTC", "AEENDTC")]))
+    min_date <- min(dates, na.rm = TRUE) - 30
+    max_date <- max(dates, na.rm = TRUE) + 30
+
     # Duplite AESTDTC and AEENDTC columns 
     timeline_df$AEENDTC_COPY <- timeline_df$AEENDTC
     timeline_df$AESTDTC_COPY <- timeline_df$AESTDTC
     
     # If AEENDTC is NA, replace it with value in AESTDTC
     timeline_df <- timeline_df %>%
-      mutate(AEENDTC = ifelse(is.na(timeline_df$AEENDTC), AESTDTC, AEENDTC))
+      mutate(AEENDTC = ifelse(is.na(cm_full_date(AEENDTC)), AESTDTC, AEENDTC))
     
     # Change the type for the dates from character to Date
     timeline_df <- data.frame(timeline_df[c("AEDECOD", "AEENDTC_COPY")], 
@@ -582,6 +582,7 @@ mod_ae_server <- function(input, output, dm_r, ae_r) {
     # Filter dataframe based on filter selection
     table_timeline_df <- ae_dm_df() %>% filter(USUBJID == input$subj_select)
     
+    validate(need(nrow(table_timeline_df), "Select a subject with adverse events."))
     ae_usubjid <- table_timeline_df$USUBJID[1]
     ae_actarm <- table_timeline_df$ACTARM[1]
     ae_rfstdtc <- table_timeline_df$RFSTDTC[1]
