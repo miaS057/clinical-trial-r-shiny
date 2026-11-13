@@ -1,0 +1,10 @@
+name: clinical-trial-dashboard
+title:
+username: ethanbaek
+account: ethanbaek
+server: connect.posit.cloud
+hostUrl: https://api.connect.posit.cloud/v1
+appId: 01a1d25d-8db1-9550-7e4b-97e383f80b82
+bundleId:
+url: https://connect.posit.cloud/ethanbaek/content/01a1d25d-8db1-9550-7e4b-97e383f80b82
+version: 1
