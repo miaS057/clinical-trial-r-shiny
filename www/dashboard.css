@@ -1,0 +1,328 @@
+:root {
+  --trial-ink: #24364b;
+  --trial-muted: #52647a;
+  --trial-line: #dce5ee;
+  --trial-soft: #f3f7fb;
+  --trial-accent: #266794;
+}
+
+body {
+  background: #f6f8fb;
+  color: var(--trial-ink);
+}
+
+.bslib-page-navbar > .navbar {
+  background: #fff !important;
+  border-bottom: 1px solid var(--trial-line);
+}
+
+.bslib-page-navbar .navbar-brand,
+#clinical_domain .nav-link {
+  color: var(--trial-ink);
+  font-weight: 600;
+}
+
+#clinical_domain .nav-link.active {
+  background: #edf4fa;
+  color: var(--trial-accent);
+}
+
+.bslib-page-navbar > .container-fluid > .tab-content {
+  width: min(100%, 1460px);
+  margin-inline: auto;
+}
+
+.domain-stack {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.domain-stack > .bslib-card {
+  margin-bottom: 0;
+}
+
+.domain-stack .card,
+.bslib-card:has(> .card-header #cm_view) {
+  --bs-card-bg: #fff;
+  --bs-card-border-color: var(--trial-line);
+}
+
+.domain-stack .card-header {
+  background: #fff;
+  font-weight: 600;
+}
+
+.domain-filters {
+  --_sidebar-bg: var(--trial-soft);
+}
+
+.domain-filters .shiny-input-container,
+.subject-toolbar .shiny-input-container {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.domain-filters .selectize-input > .item {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.domain-note {
+  margin: 0;
+  color: var(--trial-muted);
+  font-size: 0.93em;
+  line-height: 1.5;
+}
+
+.disposition-flow {
+  height: 370px;
+  min-width: 0;
+}
+
+#flow_sankey .sankey-link:hover {
+  fill-opacity: 0.65 !important;
+}
+
+/* Plotly derives the tooltip fill from the hovered link or slice. */
+#flow_sankey:has(.sankey-link:hover) .hovertext > path,
+#donut_by_med .hovertext > path {
+  fill-opacity: 0.9 !important;
+  filter: brightness(1.75) saturate(0.55);
+}
+
+.domain-table-body {
+  padding: 0;
+}
+
+.domain-table-scroll {
+  overflow-x: auto;
+}
+
+.domain-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  font-size: 14px;
+}
+
+.domain-table th,
+.domain-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #e9eff5;
+  text-align: left;
+}
+
+.domain-table thead th {
+  background: var(--trial-soft);
+  color: var(--trial-ink);
+  font-weight: 600;
+  vertical-align: bottom;
+}
+
+.domain-table tbody th {
+  font-weight: 500;
+}
+
+.domain-table .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.domain-table .disposition-total > * {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.domain-table .disposition-reason {
+  padding-inline-start: 28px;
+  color: var(--trial-muted);
+}
+
+.disposition-table th:first-child {
+  min-width: 175px;
+}
+
+.disposition-table thead th:not(:first-child) {
+  min-width: 95px;
+}
+
+.arm-swatch {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin-inline-end: 0.45em;
+  border-radius: 50%;
+  background: var(--arm-color);
+  vertical-align: 0.05em;
+}
+
+.medication-overview {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(300px, 1fr);
+  align-items: center;
+  gap: clamp(16px, 3vw, 40px);
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.medication-table {
+  border: 1px solid var(--trial-line);
+  border-radius: 8px;
+}
+
+.medication-table tr:last-child > * {
+  border-bottom: 0;
+}
+
+.subject-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 12px;
+}
+
+.subject-toolbar .shiny-input-container {
+  width: min(100%, 260px);
+}
+
+.subject-arm {
+  display: inline-block;
+  margin: 0 0 5px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: var(--trial-soft);
+  color: var(--trial-muted);
+  font-size: 0.93em;
+  font-weight: 600;
+}
+
+.timeline-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-bottom: 10px;
+  color: var(--trial-muted);
+  font-size: 13px;
+}
+
+.timeline-key > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeline-key-line {
+  display: inline-block;
+  width: 17px;
+  border-top: 3px dashed var(--line-color);
+}
+
+.timeline-key-line.dotted {
+  border-top-style: dotted;
+}
+
+.timeline-key-ongoing {
+  position: relative;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: #3376a6;
+}
+
+.timeline-key-ongoing::after {
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  transform: translateY(-50%);
+  border-block: 2.5px solid transparent;
+  border-left: 3px solid #3376a6;
+  content: "";
+}
+
+.timeline-key-arrow {
+  color: var(--trial-accent);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.timeline-scroll {
+  overflow-x: auto;
+}
+
+.timeline-scroll .shiny-plot-output {
+  min-width: 560px;
+}
+
+.timeline-records {
+  max-height: 380px;
+  overflow: auto;
+}
+
+.timeline-records thead th {
+  position: sticky;
+  top: 0;
+}
+
+.timeline-records .date-cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-note {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--trial-line);
+}
+
+.domain-table-body .shiny-output-error-validation {
+  padding: 12px 14px;
+}
+
+@media (max-width: 1080px) {
+  .medication-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  #clinical_domain {
+    flex-direction: row;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  #clinical_domain .nav-link {
+    padding: 7px 12px;
+  }
+
+  .bslib-sidebar-layout:has(> .domain-filters) {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .bslib-sidebar-layout > .domain-filters {
+    order: -1;
+    border-top: 0;
+    border-bottom: 1px solid var(--trial-line);
+  }
+
+  .domain-filters .sidebar-content {
+    padding: 14px 16px;
+  }
+
+  .disposition-flow {
+    height: 325px;
+  }
+
+  .domain-table th,
+  .domain-table td {
+    padding: 8px 10px;
+  }
+
+  .medication-overview {
+    padding: 0;
+  }
+}

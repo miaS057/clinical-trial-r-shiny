@@ -39,9 +39,9 @@ server <- function(input, output, session) {
   # NOTE: So for each module we need to have a server component
   
   mod_dm_server(input, output, dm_r = dm_r)
-  #mod_ds_server(output, ds_r = ds_r)
+  mod_ds_server(dm_r, ds_r, output, input, session)
   mod_ae_server(input, output, dm_r = dm_r, ae_r = ae_r)
-  #mod_cm_server(output, cm_r = cm_r)
+  mod_cm_server(dm_r, cm_r, output, input, session)
   
   # NOTE: if your particular component needs other data_sets
   # you can add them here
